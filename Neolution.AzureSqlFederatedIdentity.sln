@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.36105.23
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity", "Neolution.AzureSqlFederatedIdentity\Neolution.AzureSqlFederatedIdentity.csproj", "{365E1220-70DE-41AA-8434-F665AE78CC71}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity.UnitTests", "Neolution.AzureSqlFederatedIdentity.UnitTests\Neolution.AzureSqlFederatedIdentity.UnitTests.csproj", "{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity.Sample", "Neolution.AzureSqlFederatedIdentity.Sample\Neolution.AzureSqlFederatedIdentity.Sample.csproj", "{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{365E1220-70DE-41AA-8434-F665AE78CC71}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{365E1220-70DE-41AA-8434-F665AE78CC71}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{365E1220-70DE-41AA-8434-F665AE78CC71}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{365E1220-70DE-41AA-8434-F665AE78CC71}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7823ED64-B561-4C49-AD43-9361A0996B9B}
+	EndGlobalSection
+EndGlobal
