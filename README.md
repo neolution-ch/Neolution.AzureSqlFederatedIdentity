@@ -9,7 +9,7 @@ This repository provides federated identity integration for Azure SQL using Goog
 ## Projects
 
 - **Neolution.AzureSqlFederatedIdentity**: The main library, distributed as a [NuGet package](https://www.nuget.org/packages/Neolution.AzureSqlFederatedIdentity).
-- **Neolution.AzureSqlFederatedIdentity.Sample**: Example ASP.NET Core application demonstrating usage.
+- **Neolution.AzureSqlFederatedIdentity.Demo**: Example ASP.NET Core application demonstrating usage.
 - **Neolution.AzureSqlFederatedIdentity.UnitTests**: Unit tests for the library.
 
 ## Quick Start
