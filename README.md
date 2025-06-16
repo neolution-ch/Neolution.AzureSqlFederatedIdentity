@@ -1,8 +1,8 @@
 # Neolution.AzureSqlFederatedIdentity Solution
 
-[![Build Status](https://github.com/your-org/Neolution.AzureSqlFederatedIdentity/actions/workflows/build.yml/badge.svg)](https://github.com/your-org/Neolution.AzureSqlFederatedIdentity/actions)
+[![Build Status](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/actions/workflows/ci.yml/badge.svg)](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/actions)
 [![NuGet](https://img.shields.io/nuget/v/Neolution.AzureSqlFederatedIdentity.svg)](https://www.nuget.org/packages/Neolution.AzureSqlFederatedIdentity)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgray.svg)](LICENSE)
 
 This repository provides federated identity integration for Azure SQL using Google Cloud IAM Credentials and Microsoft Entra ID (Azure AD).
 
