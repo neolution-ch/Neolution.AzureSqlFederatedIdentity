@@ -1,4 +1,4 @@
-namespace Neolution.AzureSqlFederatedIdentity.Sample.Entities
+namespace Neolution.AzureSqlFederatedIdentity.Demo.Entities
 {
     public class TestEntity
     {

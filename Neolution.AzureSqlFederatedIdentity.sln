@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederated
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity.UnitTests", "Neolution.AzureSqlFederatedIdentity.UnitTests\Neolution.AzureSqlFederatedIdentity.UnitTests.csproj", "{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity.Sample", "Neolution.AzureSqlFederatedIdentity.Sample\Neolution.AzureSqlFederatedIdentity.Sample.csproj", "{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neolution.AzureSqlFederatedIdentity.Demo", "Neolution.AzureSqlFederatedIdentity.Demo\Neolution.AzureSqlFederatedIdentity.Demo.csproj", "{1F807A58-8D24-5EDB-D0DD-4D0E9F5B3920}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,10 +23,10 @@ Global
 		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DCCFAA71-81F1-44D2-8687-8BAF2C55D8BB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{49CE5239-654E-8491-6A0F-B2D6B3BDA4BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F807A58-8D24-5EDB-D0DD-4D0E9F5B3920}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F807A58-8D24-5EDB-D0DD-4D0E9F5B3920}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F807A58-8D24-5EDB-D0DD-4D0E9F5B3920}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F807A58-8D24-5EDB-D0DD-4D0E9F5B3920}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

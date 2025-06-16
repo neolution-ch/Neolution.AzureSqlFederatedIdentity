@@ -1,7 +1,7 @@
-namespace Neolution.AzureSqlFederatedIdentity.Sample.Database
+namespace Neolution.AzureSqlFederatedIdentity.Demo.Database
 {
     using Microsoft.EntityFrameworkCore;
-    using Neolution.AzureSqlFederatedIdentity.Sample.Entities;
+    using Neolution.AzureSqlFederatedIdentity.Demo.Entities;
 
     public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
     {

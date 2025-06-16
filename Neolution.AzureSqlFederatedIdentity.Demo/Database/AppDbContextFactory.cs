@@ -1,4 +1,4 @@
-﻿namespace Neolution.AzureSqlFederatedIdentity.Sample.Database
+﻿namespace Neolution.AzureSqlFederatedIdentity.Demo.Database
 {
     using System;
     using Microsoft.Data.SqlClient;

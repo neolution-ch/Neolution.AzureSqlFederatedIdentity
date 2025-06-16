@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Neolution.AzureSqlFederatedIdentity;
-using Neolution.AzureSqlFederatedIdentity.Sample.Database;
+using Neolution.AzureSqlFederatedIdentity.Demo.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
