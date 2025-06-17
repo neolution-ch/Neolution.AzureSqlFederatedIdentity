@@ -58,6 +58,15 @@ jobs:
 
       - name: run release-it
         run: |
+          # DEBUG: dump inputs, tags, and changelog
+          echo "Inputs: release_type=${{ github.event.inputs.release_type }}, continue_prerelease=${{ github.event.inputs.continue_prerelease }}, version_bump=${{ github.event.inputs.version_bump }}, is_dry_run=${{ github.event.inputs.is_dry_run }}"
+          echo "All tags:" && git tag --list
+          echo "Latest stable tag: $(git describe --tags --match "*.*.*" --abbrev=0 || echo none)"
+          echo "Latest prerelease tag: $(git describe --tags --match "*-${{ github.event.inputs.release_type }}.*" --abbrev=0 || echo none)"
+          echo "CHANGELOG top lines:"
+          echo '```'
+          head -n30 CHANGELOG.md
+          echo '```'
           params=()
 
           if [[ "${{ github.event.inputs.release_type }}" == "stable" ]]; then
@@ -72,11 +81,13 @@ jobs:
             params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
           else
             # non-continuation prerelease should bump as prepatch
+            if [[ "${{ github.event.inputs.release_type }}" != "stable" ]]; then
+              echo "Bypassing version validation for prerelease."
+              params+=(--no-version-validation)
+            fi
+            params+=(--git.tagMatch="[0-9]*\\.[0-9]*\\.[0-9]*")
             params+=(--preReleaseId=${{ github.event.inputs.release_type }})
-            params+=(--increment=pre${{ github.event.inputs.version_bump }})
             params+=(--preRelease=${{ github.event.inputs.release_type }})
-            params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
-            params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
           fi
 
           if [[ "${{ github.event.inputs.is_dry_run }}" == "true" ]]; then
@@ -86,6 +97,8 @@ jobs:
           params+=(--ci)
 
           echo "command: release-it ${params[@]}"
-          release-it "${params[@]}"
+          echo "Release-it version: $(release-it --version)"
+          echo "Running with verbose logging"
+          release-it --verbose "${params[@]}"
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
