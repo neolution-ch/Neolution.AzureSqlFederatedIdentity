@@ -72,8 +72,8 @@ jobs:
             params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
           else
             # non-continuation prerelease should bump as prepatch
-            params+=(--increment=pre${{ github.event.inputs.version_bump }})
             params+=(--preReleaseId=${{ github.event.inputs.release_type }})
+            params+=(--increment=pre${{ github.event.inputs.version_bump }})
             params+=(--preRelease=${{ github.event.inputs.release_type }})
             params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
             params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
