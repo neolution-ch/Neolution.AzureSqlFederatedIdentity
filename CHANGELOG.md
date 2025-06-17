@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.1] - 2025-06-16
+
 ### Added
 
 - Initial release of **Neolution.AzureSqlFederatedIdentity**.
@@ -14,3 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Obtain Azure SQL access tokens using Google service accounts.
 - Automatic token refresh and caching.
 - Easy integration with ASP.NET Core and .NET worker services.
+
+[unreleased]: https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/compare/0.0.1...HEAD
+[0.0.1]: https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/compare/0.0.1-alpha.2...0.0.1
