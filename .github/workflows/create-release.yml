@@ -73,8 +73,6 @@ jobs:
           else
             # non-continuation prerelease should bump as prepatch
             params+=(--increment=pre${{ github.event.inputs.version_bump }})
-            # base the bump on the last stable semver tag only
-            params+=(--git.tagMatch="*.*.*")
             params+=(--preReleaseId=${{ github.event.inputs.release_type }})
             params+=(--preRelease=${{ github.event.inputs.release_type }})
             params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
