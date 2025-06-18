@@ -20,4 +20,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Easy integration with ASP.NET Core and .NET worker services.
 
 [unreleased]: https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/compare/0.0.1...HEAD
-[0.0.1]: https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/compare/0.0.1-alpha.2...0.0.1
+[0.0.1]: https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/compare/0.0.1-alpha.3...0.0.1
