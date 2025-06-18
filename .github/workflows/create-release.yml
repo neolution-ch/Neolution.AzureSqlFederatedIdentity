@@ -63,15 +63,31 @@ jobs:
           if [[ "${{ github.event.inputs.release_type }}" == "stable" ]]; then
             params+=(--${{ github.event.inputs.version_bump }})
           elif [[ "${{ github.event.inputs.continue_prerelease }}" == "true" ]]; then
-            # Tell release-it to use prerelease tags
-            params+=(--preReleaseId=${{ github.event.inputs.release_type }})
-            params+=(--increment=prerelease)
+            # continue existing prerelease counter on patch bumps, otherwise bump to next minor/major prerelease
+            if [[ "${{ github.event.inputs.version_bump }}" == "patch" ]]; then
+              params+=(--preReleaseId=${{ github.event.inputs.release_type }})
+              params+=(--increment=prerelease)
+            elif [[ "${{ github.event.inputs.version_bump }}" == "minor" ]]; then
+              params+=(--increment=preminor)
+              params+=(--preReleaseId=${{ github.event.inputs.release_type }})
+            else
+              params+=(--increment=premajor)
+              params+=(--preReleaseId=${{ github.event.inputs.release_type }})
+            fi
             params+=(--preRelease=${{ github.event.inputs.release_type }})
             params+=(--git.tagMatch="*-${{ github.event.inputs.release_type }}.*")
             params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
             params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
           else
-            params+=(--${{ github.event.inputs.version_bump }})
+            # initial prerelease: bump to X.Y.Z and start at prerelease .0
+            if [[ "${{ github.event.inputs.version_bump }}" == "patch" ]]; then
+              params+=(--increment=prepatch)
+            elif [[ "${{ github.event.inputs.version_bump }}" == "minor" ]]; then
+              params+=(--increment=preminor)
+            else
+              params+=(--increment=premajor)
+            fi
+            params+=(--preReleaseId=${{ github.event.inputs.release_type }})
             params+=(--preRelease=${{ github.event.inputs.release_type }})
             params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
             params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
