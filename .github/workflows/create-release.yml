@@ -56,6 +56,14 @@ jobs:
       - name: install release-it with plugins
         run: npm install -g release-it @release-it/keep-a-changelog
 
+      - name: ensure CHANGELOG has Unreleased entries
+        run: |
+          # extract lines under '## [Unreleased]' until next header, remove header and blank lines
+          if ! sed -n '/^## \[Unreleased\]/,/^## \[/{ /^##/d; /^\s*$/d; p }' CHANGELOG.md | grep -q .; then
+            echo "::error::The [Unreleased] section is empty. Aborting release process."
+            exit 1
+          fi
+
       - name: run release-it
         run: |
           params=()
