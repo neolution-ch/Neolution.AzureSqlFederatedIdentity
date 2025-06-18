@@ -56,6 +56,22 @@ jobs:
       - name: install release-it with plugins
         run: npm install -g release-it @release-it/keep-a-changelog
 
+      - name: dump .release-it.json
+        run: |
+          echo '```'
+          echo "=== .release-it.json config ==="
+          cat .release-it.json
+          echo '```'
+
+      - name: dump CHANGELOG excerpt
+        run: |
+          echo '```'
+          echo "=== CHANGELOG.md excerpt ==="
+          sed -n '1,30p' CHANGELOG.md
+          echo "=== CHANGELOG footer links ==="
+          tail -n 10 CHANGELOG.md
+          echo '```'
+
       - name: ensure CHANGELOG has Unreleased entries
         run: |
           # extract lines under '## [Unreleased]' until next header, remove header and blank lines
@@ -106,6 +122,8 @@ jobs:
           fi
 
           params+=(--ci)
+          # enable debug logging
+          params+=(--debug)
 
           echo "command: release-it ${params[@]}"
           release-it "${params[@]}"
