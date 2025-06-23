@@ -3,27 +3,22 @@ name: Create Release
 on:
   workflow_dispatch:
     inputs:
-      release_type:
+      versioning_phase:
         type: choice
-        description: Release Type
+        description: Versioning Phase
         default: stable
         options:
-          - stable
           - alpha
           - beta
           - rc
+          - stable
 
-      continue_prerelease:
-        type: boolean
-        description: |
-          Do not bump version number, increase pre-release revision number instead.
-        default: false
-
-      version_bump:
+      bump_version_number:
         type: choice
-        description: Bump version number
-        default: patch
+        description: Bump Version Number
+        default: consecutive
         options:
+          - consecutive
           - patch
           - minor
           - major
@@ -46,6 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ steps.generate-token.outputs.token }}
+          # we need everything so release-it can compare the current version with the latest tag
           fetch-depth: 0
 
       - name: initialize mandatory git config
@@ -60,25 +56,18 @@ jobs:
         run: |
           params=()
 
-          if [[ "${{ github.event.inputs.release_type }}" == "stable" ]]; then
-            params+=(--${{ github.event.inputs.version_bump }})
-          elif [[ "${{ github.event.inputs.continue_prerelease }}" == "true" ]]; then
-            # Tell release-it to use prerelease tags
-            params+=(--preReleaseId=${{ github.event.inputs.release_type }})
-            params+=(--increment=prerelease)
-            params+=(--preRelease=${{ github.event.inputs.release_type }})
-            params+=(--git.tagMatch="*-${{ github.event.inputs.release_type }}.*")
-            params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
-            params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
-          else
-            params+=(--${{ github.event.inputs.version_bump }})
-            params+=(--preRelease=${{ github.event.inputs.release_type }})
-            params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
-            params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
+          if [[ ${{ github.event.inputs.bump_version_number }} != "consecutive" ]]; then
+              params+=(${{ github.event.inputs.bump_version_number }})
           fi
 
-          if [[ "${{ github.event.inputs.is_dry_run }}" == "true" ]]; then
-            params+=(--dry-run)
+          if [[ ${{ github.event.inputs.versioning_phase }} != "stable" ]]; then
+              params+=(--preRelease=${{ github.event.inputs.versioning_phase }})
+              params+=(--plugins.@release-it/keep-a-changelog.keepUnreleased)
+              params+=(--no-plugins.@release-it/keep-a-changelog.strictLatest)
+          fi
+
+          if [[ ${{ github.event.inputs.is_dry_run }} == "true" ]]; then
+              params+=(--dry-run)
           fi
 
           params+=(--ci)
