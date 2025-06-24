@@ -30,7 +30,7 @@
         /// <param name="logger">The logger instance.</param>
         public GoogleIdTokenProvider(IOptions<AzureSqlFederatedIdentityOptions> options, ILogger<GoogleIdTokenProvider> logger)
         {
-            ArgumentNullException.ThrowIfNull(options.Value.Google);
+            ArgumentNullException.ThrowIfNull(options);
 
             this.options = options.Value.Google;
             this.logger = logger;

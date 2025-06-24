@@ -1,23 +1,24 @@
 ﻿namespace Neolution.AzureSqlFederatedIdentity.Options
 {
     /// <summary>
-    /// Options for configuring Azure SQL federated identity integration.
+    /// Root configuration for Azure SQL identity authentication.
     /// </summary>
     public class AzureSqlFederatedIdentityOptions
     {
         /// <summary>
-        /// Gets or sets the Azure AD tenant ID.
+        /// Gets or sets the provider to use for identity: ManagedIdentity, Google, etc.
         /// </summary>
-        public string TenantId { get; set; } = string.Empty;
+        public FederatedIdentityProvider Provider { get; set; } = FederatedIdentityProvider.ManagedIdentity;
 
         /// <summary>
-        /// Gets or sets the Azure AD client ID.
+        /// Gets or sets options for Managed Identity authentication.
         /// </summary>
-        public string ClientId { get; set; } = string.Empty;
+        public ManagedIdentityOptions ManagedIdentity { get; set; } = new ManagedIdentityOptions();
 
         /// <summary>
-        /// Gets or sets the Google-specific options.
+        /// Gets or sets options for Google federated identity authentication.
+        /// Used when Provider = "Google".
         /// </summary>
-        public GoogleOptions? Google { get; set; }
+        public GoogleOptions Google { get; set; } = new GoogleOptions();
     }
 }

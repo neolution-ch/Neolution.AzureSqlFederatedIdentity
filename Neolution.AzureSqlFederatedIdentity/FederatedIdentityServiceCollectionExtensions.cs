@@ -1,11 +1,12 @@
 ﻿namespace Neolution.AzureSqlFederatedIdentity
 {
+    using System;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Internal;
-    using Neolution.AzureSqlFederatedIdentity.Internal.Services;
     using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
@@ -45,7 +46,12 @@
         /// <returns>The service collection for chaining.</returns>
         public static IServiceCollection AddAzureSqlFederatedIdentity(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<AzureSqlFederatedIdentityOptions>(options => configuration.GetSection("Neolution.AzureSqlFederatedIdentity").Bind(options));
+            // Bind root and sub-options via manual binding to ensure correct overloads
+            const string configSectionKey = "Neolution.AzureSqlFederatedIdentity";
+            services.Configure<AzureSqlFederatedIdentityOptions>(options => configuration.GetSection(configSectionKey).Bind(options));
+            services.Configure<ManagedIdentityOptions>(options => configuration.GetSection($"{configSectionKey}:ManagedIdentity").Bind(options));
+            services.Configure<GoogleOptions>(options => configuration.GetSection($"{configSectionKey}:Google").Bind(options));
+
             RegisterFederatedIdentityServices(services);
             return services;
         }
@@ -57,11 +63,33 @@
         private static void RegisterFederatedIdentityServices(IServiceCollection services)
         {
             services.AddMemoryCache();
+
+            // Register token provider implementations for DI
             services.AddSingleton<IGoogleIdTokenProvider, GoogleIdTokenProvider>();
-            services.AddSingleton<IAzureSqlTokenExchanger, AzureSqlTokenExchanger>();
             services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
-            services.AddHostedService<AzureSqlTokenRefreshService>();
-            services.AddSingleton<IValidateOptions<AzureSqlFederatedIdentityOptions>, AzureSqlFederatedIdentityOptionsValidator>();
+
+            // Token exchanger factory based on Provider enum
+            services.AddSingleton<ITokenExchanger>(sp =>
+            {
+                var root = sp.GetRequiredService<IOptions<AzureSqlFederatedIdentityOptions>>().Value;
+                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                switch (root.Provider)
+                {
+                    case FederatedIdentityProvider.ManagedIdentity:
+                        var mi = sp.GetRequiredService<IOptions<ManagedIdentityOptions>>().Value;
+                        var miLogger = loggerFactory.CreateLogger<ManagedIdentityTokenExchanger>();
+                        return new ManagedIdentityTokenExchanger(miLogger, mi);
+
+                    case FederatedIdentityProvider.Google:
+                        var g = sp.GetRequiredService<IOptions<GoogleOptions>>().Value;
+                        var gLogger = loggerFactory.CreateLogger<AzureSqlTokenExchanger>();
+                        var googleProvider = sp.GetRequiredService<IGoogleIdTokenProvider>();
+                        return new AzureSqlTokenExchanger(gLogger, googleProvider, g);
+
+                    default:
+                        throw new InvalidOperationException($"Unknown provider '{root.Provider}'.");
+                }
+            });
         }
     }
 }

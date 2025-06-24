@@ -64,6 +64,116 @@ The application will then:
 * Use this Google ID token to request an Azure AD access token for Azure SQL, presenting the Google ID token as a federated credential.
 * Use the Azure AD access token to connect to Azure SQL.
 
+## 5. Azure Managed Identity Support
+
+You can use Azure Managed Identities (system-assigned or user-assigned) instead of federated Google identities. Follow these steps:
+
+1. In the Azure Portal, enable a Managed Identity on your compute resource (App Service, Virtual Machine, Function, etc.). For user-assigned identities, note the **Client ID**.
+2. Ensure your Azure SQL server has an Entra ID admin configured under **Settings > Entra ID Admin**.
+3. In your database, create an external user for the Managed Identity:
+
+   ```sql
+   -- System-assigned Managed Identity:
+   CREATE USER [<resource-name>] FROM EXTERNAL PROVIDER;
+
+   -- Or user-assigned Managed Identity (using client ID):
+   CREATE USER [<user-assigned-client-id>] FROM EXTERNAL PROVIDER;
+
+   ALTER ROLE db_datareader ADD MEMBER [<identity>];
+   ALTER ROLE db_datawriter ADD MEMBER [<identity>];
+   ```
+
+4. Configure your application settings (e.g., in `appsettings.json`):
+
+   ```json
+   {
+     "Neolution.AzureSqlFederatedIdentity": {
+       "UseManagedIdentity": true,
+       "ManagedIdentityClientId": "<optional-user-assigned-client-id>"
+     }
+   }
+   ```
+
+   Omitting `ManagedIdentityClientId` uses the system-assigned identity by default.
+
+5. No code changes needed beyond registering services:
+
+   ```csharp
+   builder.Services.AddAzureSqlFederatedIdentity(builder.Configuration);
+   ```
+
+> Note: In **Managed Identity** mode, the library fetches tokens directly from Azure’s Instance Metadata Service (or the user-assigned identity) and does **not** use or require any Google service account.
+
+## FAQ
+
+### Does this package support Azure Managed Identities?
+
+Yes. See Section 5 above for setup instructions.
+
+---
+
+## Extending to Other Identity Providers
+
+Rather than duplicating nested sections, use a single top-level `Provider` setting with a matching section named for the chosen provider. Only that section needs to be populated:
+
+### Managed Identity
+
+```json
+"Neolution.AzureSqlFederatedIdentity": {
+  "Provider": "ManagedIdentity",
+
+  "ManagedIdentity": {
+    "ClientId": "<optional-user-assigned-client-id>"
+  }
+}
+```
+
+### Google Cloud
+
+```json
+"Neolution.AzureSqlFederatedIdentity": {
+  "Provider": "Google",
+
+  "Google": {
+    "ClientId": "<azure-ad-app-client-id>",
+    "TenantId": "<azure-entra-tenant-id>",
+    "ServiceAccountEmail": "<gcp-service-account-email>"
+  }
+}
+```
+
+### AWS STS (Assume Role)
+
+```json
+"Neolution.AzureSqlFederatedIdentity": {
+  "Provider": "Aws",
+
+  "Aws": {
+    "ClientId": "<azure-ad-app-client-id>",
+    "TenantId": "<azure-entra-tenant-id>",
+    "RoleArn": "arn:aws:iam::123456789012:role/MyFederatedRole",
+    "SessionName": "MySqlSession"
+  }
+}
+```
+
+### GitHub OIDC
+
+```json
+"Neolution.AzureSqlFederatedIdentity": {
+  "Provider": "GitHub",
+
+  "GitHub": {
+    "ClientId": "<azure-ad-app-client-id>",
+    "TenantId": "<azure-entra-tenant-id>",
+    "Repository": "org/repo",
+    "Environment": "production"
+  }
+}
+```
+
+In your DI registration (`RegisterFederatedIdentityServices`), branch on the single `options.Provider` value to instantiate the matching `IAzureSqlTokenExchanger` implementation.  
+
 ---
 
 For more details, see the official documentation for [Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/active-directory/), [Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/), [Google Cloud IAM](https://cloud.google.com/iam/docs/), and [Cloud Run](https://cloud.google.com/run/docs/).

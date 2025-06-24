@@ -5,9 +5,7 @@
     using Azure.Core;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
-    using Neolution.AzureSqlFederatedIdentity.Options;
     using NSubstitute;
     using Shouldly;
 
@@ -40,19 +38,20 @@
             var token = this.fixture.Create<string>();
             var accessToken = new AccessToken(token, DateTimeOffset.UtcNow.AddMinutes(10));
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
-            const string clientId = "client";
-            var options = Options.Create(new AzureSqlFederatedIdentityOptions { ClientId = clientId, TenantId = "tenant" });
+
+            // Prime cache under the static key
+            const string cacheKey = "AzureSqlTokenProvider_AzureSqlAccessToken";
+            memoryCache.Set(cacheKey, accessToken);
             var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var exchanger = this.fixture.Create<IAzureSqlTokenExchanger>();
-            memoryCache.Set($"AzureSqlFederatedIdentity_AccessToken_{clientId}", accessToken);
-            var provider = new AzureSqlTokenProvider(exchanger, options, logger, memoryCache);
+            var exchanger = Substitute.For<ITokenExchanger>();
+            var provider = new AzureSqlTokenProvider(exchanger, logger, memoryCache);
 
             // Act
             var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
 
             // Assert
             result.ShouldBe(token);
-            await exchanger.DidNotReceiveWithAnyArgs().ExchangeClientAssertionForAzureTokenAsync(null!, null!, CancellationToken.None);
+            _ = exchanger.DidNotReceive().GetTokenAsync(Arg.Any<CancellationToken>());
         }
 
         /// <summary>
@@ -66,20 +65,20 @@
             var token = this.fixture.Create<string>();
             var accessToken = new AccessToken(token, DateTimeOffset.UtcNow.AddMinutes(10));
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
-            var options = Options.Create(new AzureSqlFederatedIdentityOptions { ClientId = "client", TenantId = "tenant" });
             var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var exchanger = this.fixture.Create<IAzureSqlTokenExchanger>();
-            exchanger.ExchangeClientAssertionForAzureTokenAsync("tenant", "client", Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult(accessToken));
-            var provider = new AzureSqlTokenProvider(exchanger, options, logger, memoryCache);
+            var exchanger = Substitute.For<ITokenExchanger>();
+            exchanger.GetTokenAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(accessToken));
+            var provider = new AzureSqlTokenProvider(exchanger, logger, memoryCache);
 
             // Act
             var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
 
             // Assert
             result.ShouldBe(token);
-            memoryCache.TryGetValue($"AzureSqlFederatedIdentity_AccessToken_client", out AccessToken cached).ShouldBeTrue();
+            const string cacheKey = "AzureSqlTokenProvider_AzureSqlAccessToken";
+            memoryCache.TryGetValue(cacheKey, out AccessToken cached).ShouldBeTrue();
             cached.Token.ShouldBe(token);
+            _ = exchanger.Received(1).GetTokenAsync(Arg.Any<CancellationToken>());
         }
     }
 }

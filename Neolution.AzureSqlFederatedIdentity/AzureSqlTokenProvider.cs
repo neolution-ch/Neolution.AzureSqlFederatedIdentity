@@ -3,9 +3,7 @@
     using Azure.Core;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
-    using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Provides Azure SQL access tokens, with caching and automatic refresh.
@@ -15,12 +13,7 @@
         /// <summary>
         /// The token exchanger for Azure SQL.
         /// </summary>
-        private readonly IAzureSqlTokenExchanger azureSqlTokenExchanger;
-
-        /// <summary>
-        /// The options for federated identity configuration.
-        /// </summary>
-        private readonly AzureSqlFederatedIdentityOptions options;
+        private readonly ITokenExchanger tokenExchanger;
 
         /// <summary>
         /// The logger instance for this class.
@@ -35,20 +28,15 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureSqlTokenProvider"/> class.
         /// </summary>
-        /// <param name="azureSqlTokenExchanger">The token exchanger for Azure SQL.</param>
-        /// <param name="options">The federated identity options.</param>
+        /// <param name="tokenExchanger">The token exchanger for Azure SQL.</param>
         /// <param name="logger">The logger instance.</param>
         /// <param name="memoryCache">The memory cache instance.</param>
         public AzureSqlTokenProvider(
-            IAzureSqlTokenExchanger azureSqlTokenExchanger,
-            IOptions<AzureSqlFederatedIdentityOptions> options,
+            ITokenExchanger tokenExchanger,
             ILogger<AzureSqlTokenProvider> logger,
             IMemoryCache memoryCache)
         {
-            ArgumentNullException.ThrowIfNull(options);
-
-            this.azureSqlTokenExchanger = azureSqlTokenExchanger;
-            this.options = options.Value;
+            this.tokenExchanger = tokenExchanger ?? throw new ArgumentNullException(nameof(tokenExchanger));
             this.logger = logger;
             this.memoryCache = memoryCache;
         }
@@ -56,7 +44,7 @@
         /// <summary>
         /// Gets the cache key for the Azure SQL access token.
         /// </summary>
-        private string TokenCacheKey => $"{nameof(AzureSqlFederatedIdentity)}_AccessToken_{this.options.ClientId}";
+        private static string TokenCacheKey => $"{nameof(AzureSqlTokenProvider)}_AzureSqlAccessToken";
 
         /// <summary>
         /// Gets a valid Azure AD access token for Azure SQL, using the cache if possible.
@@ -66,7 +54,7 @@
         public async Task<string> GetAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
         {
             // Returns a valid Azure AD access token for Azure SQL, using the cache if possible.
-            if (this.memoryCache.TryGetValue<AccessToken>(this.TokenCacheKey, out var cachedToken))
+            if (this.memoryCache.TryGetValue<AccessToken>(TokenCacheKey, out var cachedToken))
             {
                 if (cachedToken.ExpiresOn.UtcDateTime > DateTimeOffset.UtcNow.AddMinutes(5))
                 {
@@ -100,7 +88,7 @@
             };
 
             this.logger.LogTrace("Caching Azure AD access token in IMemoryCache with expiration at {Expiration}.", cacheEntryOptions.AbsoluteExpiration);
-            this.memoryCache.Set(this.TokenCacheKey, accessToken, cacheEntryOptions);
+            this.memoryCache.Set(TokenCacheKey, accessToken, cacheEntryOptions);
         }
 
         /// <summary>
@@ -108,9 +96,10 @@
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The new Azure AD access token.</returns>
-        private async Task<AccessToken> FetchAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
+        private Task<AccessToken> FetchAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
         {
-            return await this.azureSqlTokenExchanger.ExchangeClientAssertionForAzureTokenAsync(this.options.TenantId, this.options.ClientId, cancellationToken).ConfigureAwait(false);
+            // Delegate token retrieval to the configured exchanger (Managed or Federated).
+            return this.tokenExchanger.GetTokenAsync(cancellationToken);
         }
     }
 }

@@ -11,44 +11,37 @@
     /// <summary>
     /// Exchanges a Google-signed ID token for an Azure AD access token for Azure SQL.
     /// </summary>
-    internal class AzureSqlTokenExchanger : ITokenExchanger
+    internal class GoogleFederatedTokenExchanger : ITokenExchanger
     {
         /// <summary>
-        /// Provides logging functionality for the <see cref="AzureSqlTokenExchanger"/> class.
+        /// The logger instance for this class.
         /// </summary>
-        private readonly ILogger<AzureSqlTokenExchanger> logger;
+        private readonly ILogger<GoogleFederatedTokenExchanger> logger;
 
         /// <summary>
-        /// Provides the interface for obtaining Google ID tokens.
+        /// Provides Google-signed ID tokens for client assertions.
         /// </summary>
         private readonly IGoogleIdTokenProvider googleIdTokenProvider;
 
         /// <summary>
-        /// Provides Google options containing TenantId, ClientId, and ServiceAccountEmail.
+        /// The federated identity options.
         /// </summary>
-        private readonly GoogleOptions options;
+        private readonly FederatedIdentityOptions options;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureSqlTokenExchanger"/> class.
+        /// Initializes a new instance of the <see cref="GoogleFederatedTokenExchanger"/> class.
         /// </summary>
-        /// <param name="logger">The logger instance for logging.</param>
-        /// <param name="googleIdTokenProvider">The provider for obtaining Google ID tokens.</param>
-        /// <param name="options">The Google options containing TenantId and ClientId.</param>
-        public AzureSqlTokenExchanger(
-            ILogger<AzureSqlTokenExchanger> logger,
-            IGoogleIdTokenProvider googleIdTokenProvider,
-            GoogleOptions options)
+        /// <param name="logger">The logger instance for this exchanger.</param>
+        /// <param name="googleIdTokenProvider">The provider for Google ID tokens.</param>
+        /// <param name="options">The federated identity configuration options.</param>
+        public GoogleFederatedTokenExchanger(ILogger<GoogleFederatedTokenExchanger> logger, IGoogleIdTokenProvider googleIdTokenProvider, FederatedIdentityOptions options)
         {
             this.logger = logger;
             this.googleIdTokenProvider = googleIdTokenProvider;
             this.options = options;
         }
 
-        /// <summary>
-        /// Gets an Azure AD access token for Azure SQL using a Google-signed ID token.
-        /// </summary>
-        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-        /// <returns>The Azure AD access token.</returns>
+        /// <inheritdoc />
         public async Task<AccessToken> GetTokenAsync(CancellationToken cancellationToken)
         {
             var credential = new ClientAssertionCredential(
