@@ -5,7 +5,7 @@
     using Azure.Core;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
-    using Neolution.AzureSqlFederatedIdentity.Abstractions;
+    using Neolution.AzureSqlFederatedIdentity.Internal;
     using NSubstitute;
     using Shouldly;
 
@@ -43,7 +43,7 @@
             const string cacheKey = "AzureSqlTokenProvider_AzureSqlAccessToken";
             memoryCache.Set(cacheKey, accessToken);
             var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var exchanger = Substitute.For<ITokenExchanger>();
+            var exchanger = Substitute.For<AzureSqlTokenExchanger>();
             var provider = new AzureSqlTokenProvider(exchanger, logger, memoryCache);
 
             // Act
@@ -66,7 +66,7 @@
             var accessToken = new AccessToken(token, DateTimeOffset.UtcNow.AddMinutes(10));
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
             var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var exchanger = Substitute.For<ITokenExchanger>();
+            var exchanger = Substitute.For<AzureSqlTokenExchanger>();
             exchanger.GetTokenAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(accessToken));
             var provider = new AzureSqlTokenProvider(exchanger, logger, memoryCache);
 

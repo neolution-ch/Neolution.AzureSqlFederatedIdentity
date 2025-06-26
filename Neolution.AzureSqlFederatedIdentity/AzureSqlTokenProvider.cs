@@ -4,6 +4,7 @@
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
+    using Neolution.AzureSqlFederatedIdentity.Internal;
 
     /// <summary>
     /// Provides Azure SQL access tokens, with caching and automatic refresh.
@@ -13,7 +14,7 @@
         /// <summary>
         /// The token exchanger for Azure SQL.
         /// </summary>
-        private readonly ITokenExchanger tokenExchanger;
+        private readonly AzureSqlTokenExchanger tokenExchanger;
 
         /// <summary>
         /// The logger instance for this class.
@@ -32,7 +33,7 @@
         /// <param name="logger">The logger instance.</param>
         /// <param name="memoryCache">The memory cache instance.</param>
         public AzureSqlTokenProvider(
-            ITokenExchanger tokenExchanger,
+            AzureSqlTokenExchanger tokenExchanger,
             ILogger<AzureSqlTokenProvider> logger,
             IMemoryCache memoryCache)
         {

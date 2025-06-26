@@ -5,13 +5,12 @@
     using Azure.Core;
     using Azure.Identity;
     using Microsoft.Extensions.Logging;
-    using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Exchanges a Google-signed ID token for an Azure AD access token for Azure SQL.
     /// </summary>
-    internal class AzureSqlTokenExchanger : ITokenExchanger
+    public class AzureSqlTokenExchanger
     {
         /// <summary>
         /// Provides logging functionality for the <see cref="AzureSqlTokenExchanger"/> class.
@@ -21,7 +20,7 @@
         /// <summary>
         /// Provides the interface for obtaining Google ID tokens.
         /// </summary>
-        private readonly IGoogleIdTokenProvider googleIdTokenProvider;
+        private readonly GoogleIdTokenProvider googleIdTokenProvider;
 
         /// <summary>
         /// Provides Google options containing TenantId, ClientId, and ServiceAccountEmail.
@@ -36,7 +35,7 @@
         /// <param name="options">The Google options containing TenantId and ClientId.</param>
         public AzureSqlTokenExchanger(
             ILogger<AzureSqlTokenExchanger> logger,
-            IGoogleIdTokenProvider googleIdTokenProvider,
+            GoogleIdTokenProvider googleIdTokenProvider,
             GoogleOptions options)
         {
             this.logger = logger;

@@ -3,12 +3,12 @@
     /// <summary>
     /// Root configuration for Azure SQL identity authentication.
     /// </summary>
-    public class AzureSqlFederatedIdentityOptions
+    public class AzureSqlOptions
     {
         /// <summary>
         /// Gets or sets the provider to use for identity: ManagedIdentity, Google, etc.
         /// </summary>
-        public FederatedIdentityProvider Provider { get; set; } = FederatedIdentityProvider.ManagedIdentity;
+        public WorkloadIdentityProvider Provider { get; set; } = WorkloadIdentityProvider.ManagedIdentity;
 
         /// <summary>
         /// Gets or sets options for Managed Identity authentication.

@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddScoped<IAppDbContextFactory, AppDbContextFactory>();
 
-builder.Services.AddAzureSqlFederatedIdentity(builder.Configuration);
+builder.Services.AddAzureSqlWorkloadIdentity(builder.Configuration);
 
 var app = builder.Build();
 

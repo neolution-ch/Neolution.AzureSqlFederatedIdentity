@@ -5,13 +5,12 @@
     using Azure.Core;
     using Azure.Identity;
     using Microsoft.Extensions.Logging;
-    using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Exchanges a managed identity credential for an Azure AD access token for Azure SQL.
     /// </summary>
-    internal class ManagedIdentityTokenExchanger : ITokenExchanger
+    internal class ManagedIdentityTokenExchanger
     {
         /// <summary>
         /// Logger instance for logging messages related to the ManagedIdentityTokenExchanger.
@@ -38,7 +37,11 @@
                 : new ManagedIdentityCredential(options.ClientId);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Retrieves an Azure AD access token for Azure SQL using the managed identity credential.
+        /// </summary>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+        /// <returns>An <see cref="AccessToken"/> containing the token and its expiration information.</returns>
         public async Task<AccessToken> GetTokenAsync(CancellationToken cancellationToken)
         {
             this.logger.LogTrace("Getting Azure AD access token for Azure SQL using Managed Identity");

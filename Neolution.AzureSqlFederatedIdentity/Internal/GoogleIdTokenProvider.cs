@@ -5,13 +5,12 @@
     using Grpc.Core;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
-    using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Provides Google-signed ID tokens for use as client assertions in Azure SQL token exchange.
     /// </summary>
-    internal class GoogleIdTokenProvider : IGoogleIdTokenProvider
+    public class GoogleIdTokenProvider
     {
         /// <summary>
         /// The logger instance for this class.
@@ -28,7 +27,7 @@
         /// </summary>
         /// <param name="options">The federated identity options.</param>
         /// <param name="logger">The logger instance.</param>
-        public GoogleIdTokenProvider(IOptions<AzureSqlFederatedIdentityOptions> options, ILogger<GoogleIdTokenProvider> logger)
+        public GoogleIdTokenProvider(IOptions<AzureSqlOptions> options, ILogger<GoogleIdTokenProvider> logger)
         {
             ArgumentNullException.ThrowIfNull(options);
 

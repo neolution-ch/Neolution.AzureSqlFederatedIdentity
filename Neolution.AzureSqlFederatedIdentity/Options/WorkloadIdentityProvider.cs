@@ -3,7 +3,7 @@
     /// <summary>
     /// Supported identity providers for Azure SQL federated identity.
     /// </summary>
-    public enum FederatedIdentityProvider
+    public enum WorkloadIdentityProvider
     {
         /// <summary>
         /// Use Azure Managed Identity (system-assigned or user-assigned).

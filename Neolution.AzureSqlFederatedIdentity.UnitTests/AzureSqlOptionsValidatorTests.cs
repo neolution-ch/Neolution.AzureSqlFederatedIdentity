@@ -5,14 +5,14 @@
     using Xunit;
 
     /// <summary>
-    /// Tests for <see cref="AzureSqlFederatedIdentityOptionsValidator"/>.
+    /// Tests for <see cref="AzureSqlOptionsValidator"/>.
     /// </summary>
-    public class AzureSqlFederatedIdentityOptionsValidatorTests
+    public class AzureSqlOptionsValidatorTests
     {
         /// <summary>
         /// The validator instance under test.
         /// </summary>
-        private readonly AzureSqlFederatedIdentityOptionsValidator validator = new();
+        private readonly AzureSqlOptionsValidator validator = new();
 
         /// <summary>
         /// Validates that passing null options fails validation.
@@ -21,7 +21,7 @@
         public void Validate_NullOptions_Fails()
         {
             // Act
-            var result = this.validator.Validate(name: null, options: new AzureSqlFederatedIdentityOptions());
+            var result = this.validator.Validate(name: null, options: new AzureSqlOptions());
 
             // Assert
             result.ShouldNotBeNull();
@@ -37,9 +37,9 @@
         public void Validate_ManagedIdentity_Succeeds()
         {
             // Arrange
-            var options = new AzureSqlFederatedIdentityOptions
+            var options = new AzureSqlOptions
             {
-                Provider = FederatedIdentityProvider.ManagedIdentity,
+                Provider = WorkloadIdentityProvider.ManagedIdentity,
             };
 
             // Act
@@ -56,9 +56,9 @@
         public void Validate_GoogleMissingFields_FailsOnClientId()
         {
             // Arrange
-            var options = new AzureSqlFederatedIdentityOptions
+            var options = new AzureSqlOptions
             {
-                Provider = FederatedIdentityProvider.Google,
+                Provider = WorkloadIdentityProvider.Google,
                 Google = new GoogleOptions(),
             };
 
@@ -79,9 +79,9 @@
         public void Validate_GoogleMissingTenant_FailsOnTenantId()
         {
             // Arrange
-            var options = new AzureSqlFederatedIdentityOptions
+            var options = new AzureSqlOptions
             {
-                Provider = FederatedIdentityProvider.Google,
+                Provider = WorkloadIdentityProvider.Google,
                 Google = new GoogleOptions
                 {
                     ClientId = "client",
@@ -105,9 +105,9 @@
         public void Validate_GoogleMissingServiceAccountEmail_FailsOnServiceAccountEmail()
         {
             // Arrange
-            var options = new AzureSqlFederatedIdentityOptions
+            var options = new AzureSqlOptions
             {
-                Provider = FederatedIdentityProvider.Google,
+                Provider = WorkloadIdentityProvider.Google,
                 Google = new GoogleOptions
                 {
                     ClientId = "client",
@@ -132,9 +132,9 @@
         public void Validate_GoogleAllFieldsProvided_Succeeds()
         {
             // Arrange
-            var options = new AzureSqlFederatedIdentityOptions
+            var options = new AzureSqlOptions
             {
-                Provider = FederatedIdentityProvider.Google,
+                Provider = WorkloadIdentityProvider.Google,
                 Google = new GoogleOptions
                 {
                     ClientId = "client",

@@ -3,30 +3,30 @@
     using Microsoft.Extensions.Options;
 
     /// <summary>
-    /// Validates <see cref="AzureSqlFederatedIdentityOptions"/> to ensure all required configuration values are set.
+    /// Validates <see cref="AzureSqlOptions"/> to ensure all required configuration values are set.
     /// </summary>
-    public class AzureSqlFederatedIdentityOptionsValidator : IValidateOptions<AzureSqlFederatedIdentityOptions>
+    public class AzureSqlOptionsValidator : IValidateOptions<AzureSqlOptions>
     {
         /// <summary>
-        /// Validates the specified <see cref="AzureSqlFederatedIdentityOptions"/> instance.
+        /// Validates the specified <see cref="AzureSqlOptions"/> instance.
         /// </summary>
         /// <param name="name">The name of the options instance being validated.</param>
         /// <param name="options">The options instance to validate.</param>
         /// <returns>A <see cref="ValidateOptionsResult"/> indicating success or failure.</returns>
-        public ValidateOptionsResult Validate(string? name, AzureSqlFederatedIdentityOptions options)
+        public ValidateOptionsResult Validate(string? name, AzureSqlOptions options)
         {
             if (options is null)
             {
-                return ValidateOptionsResult.Fail("AzureSqlFederatedIdentityOptions cannot be null.");
+                return ValidateOptionsResult.Fail("AzureSqlOptions cannot be null.");
             }
 
             // Dispatch based on enum provider
             switch (options.Provider)
             {
-                case FederatedIdentityProvider.ManagedIdentity:
+                case WorkloadIdentityProvider.ManagedIdentity:
                     return ValidateOptionsResult.Success;
 
-                case FederatedIdentityProvider.Google:
+                case WorkloadIdentityProvider.Google:
                     return options.Google is null
                         ? ValidateOptionsResult.Fail("Google settings must be provided when Provider is 'Google'.")
                         : ValidateGoogleSettings(options.Google);
