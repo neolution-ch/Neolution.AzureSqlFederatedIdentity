@@ -1,6 +1,5 @@
 ﻿namespace Neolution.AzureSqlFederatedIdentity.Internal.Exchangers
 {
-    using System;
     using System.Threading;
     using System.Threading.Tasks;
     using Azure.Core;
@@ -15,7 +14,14 @@
     /// </summary>
     internal class ManagedIdentityTokenExchanger : IWorkloadIdentityTokenExchanger
     {
+        /// <summary>
+        /// The logger instance for logging.
+        /// </summary>
         private readonly ILogger<ManagedIdentityTokenExchanger> logger;
+
+        /// <summary>
+        /// The managed identity options monitor.
+        /// </summary>
         private readonly IOptionsMonitor<ManagedIdentityOptions> managedIdentityOptionsMonitor;
 
         /// <summary>
@@ -34,18 +40,14 @@
         /// <summary>
         /// Retrieves an Azure AD access token for the specified logical context using the managed identity credential.
         /// </summary>
-        /// <param name="context">The logical context for which the access token is requested.</param>
+        /// <param name="scope">The logical context for which the access token is requested.</param>
         /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>An <see cref="AccessToken" /> containing the token and its expiration information.</returns>
-        public async Task<AccessToken> GetTokenAsync(TokenContext context, CancellationToken cancellationToken)
+        public async Task<AccessToken> GetTokenAsync(TokenScope scope, CancellationToken cancellationToken)
         {
-            if (!TokenContextMappings.Map.TryGetValue(context, out var mapping))
-            {
-                throw new ArgumentException($"Unknown TokenContext: {context}", nameof(context));
-            }
-            var options = this.managedIdentityOptionsMonitor.Get(mapping.OptionsName);
-            this.logger.LogTrace("Getting Azure AD access token for {Context} using Managed Identity", context);
-            var requestContext = new TokenRequestContext(new[] { mapping.Scope });
+            var options = this.managedIdentityOptionsMonitor.Get(scope.GetOptionsName());
+            this.logger.LogTrace("Getting Azure AD access token for {Identifier} using Managed Identity", scope);
+            var requestContext = new TokenRequestContext(new[] { scope.GetIdentifier() });
             var credential = string.IsNullOrWhiteSpace(options.ClientId)
                 ? new ManagedIdentityCredential()
                 : new ManagedIdentityCredential(options.ClientId);

@@ -25,7 +25,7 @@
         /// </summary>
         /// <param name="serviceProvider">The service provider for dependency resolution.</param>
         /// <param name="exchangerFactories">A dictionary mapping providers to factory delegates.</param>
-        internal WorkloadIdentityTokenExchangerFactory(
+        public WorkloadIdentityTokenExchangerFactory(
             IServiceProvider serviceProvider,
             IReadOnlyDictionary<WorkloadIdentityProvider, Func<IServiceProvider, IWorkloadIdentityTokenExchanger>> exchangerFactories)
         {

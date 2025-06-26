@@ -4,6 +4,7 @@
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Internal;
     using Neolution.AzureSqlFederatedIdentity.Internal.Exchangers;
@@ -26,19 +27,6 @@
         }
 
         /// <summary>
-        /// Adds Azure SQL federated identity services with custom options configuration.
-        /// </summary>
-        /// <param name="services">The service collection.</param>
-        /// <param name="configureOptions">The action to configure options.</param>
-        /// <returns>The service collection for chaining.</returns>
-        public static IServiceCollection AddAzureSqlWorkloadIdentity(this IServiceCollection services, Action<AzureSqlOptions> configureOptions)
-        {
-            services.Configure(configureOptions);
-            RegisterServices(services);
-            return services;
-        }
-
-        /// <summary>
         /// Adds Azure SQL workload identity support, binding configuration and registering services.
         /// </summary>
         /// <param name="services">The service collection.</param>
@@ -47,21 +35,83 @@
         public static IServiceCollection AddAzureSqlWorkloadIdentity(this IServiceCollection services, IConfiguration configuration)
         {
             ArgumentNullException.ThrowIfNull(configuration);
-
-            var section = configuration.GetSection("Neolution.WorkloadIdentity");
-            services.Configure<AzureSqlOptions>(options => section.GetSection("AzureSql").Bind(options));
-            services.Configure<BlobStorageOptions>(options => section.GetSection("BlobStorage").Bind(options));
-
-            // Register named options for Google and ManagedIdentity for AzureSql
-            services.Configure<GoogleOptions>("AzureSql", opts => section.GetSection("AzureSql:Google").Bind(opts));
-            services.Configure<ManagedIdentityOptions>("AzureSql", opts => section.GetSection("AzureSql:ManagedIdentity").Bind(opts));
-
-            // Register named options for Google and ManagedIdentity for BlobStorage
-            services.Configure<GoogleOptions>("BlobStorage", opts => section.GetSection("BlobStorage:Google").Bind(opts));
-            services.Configure<ManagedIdentityOptions>("BlobStorage", opts => section.GetSection("BlobStorage:ManagedIdentity").Bind(opts));
-
+            ConfigureWorkloadIdentityOptions(services, configuration);
             RegisterServices(services);
             return services;
+        }
+
+        /// <summary>
+        /// Configures workload identity options for all supported token scopes and providers.
+        /// </summary>
+        /// <param name="services">The service collection.</param>
+        /// <param name="configuration">The application configuration.</param>
+        private static void ConfigureWorkloadIdentityOptions(IServiceCollection services, IConfiguration configuration)
+        {
+            var section = configuration.GetSection("Neolution.WorkloadIdentity");
+            ConfigureTokenScopeOptions(services, section, TokenScope.AzureSql);
+            ConfigureTokenScopeOptions(services, section, TokenScope.BlobStorage);
+        }
+
+        /// <summary>
+        /// Configures token scope options for a specific scope.
+        /// </summary>
+        /// <typeparam name="TScope">The type of the token scope.</typeparam>
+        /// <param name="services">The service collection.</param>
+        /// <param name="rootSection">The root configuration section.</param>
+        /// <param name="scope">The token scope to configure.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the scope is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when the scope name is null or whitespace.</exception>
+        private static void ConfigureTokenScopeOptions<TScope>(IServiceCollection services, IConfiguration rootSection, TScope scope)
+        {
+            ArgumentNullException.ThrowIfNull(scope);
+
+            var scopeName = scope.ToString();
+            if (string.IsNullOrWhiteSpace(scopeName))
+            {
+                throw new ArgumentException("Scope name cannot be null or whitespace.", nameof(scope));
+            }
+
+            var scopeSection = rootSection.GetSection(scopeName);
+
+            switch (scopeName)
+            {
+                case nameof(TokenScope.AzureSql):
+                    services.Configure<AzureSqlOptions>(options => scopeSection.Bind(options));
+                    break;
+                case nameof(TokenScope.BlobStorage):
+                    services.Configure<BlobStorageOptions>(options => scopeSection.Bind(options));
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported token scope: {scopeName}");
+            }
+
+            ConfigureProviderOptions(services, scopeName, scopeSection, WorkloadIdentityProvider.Google);
+            ConfigureProviderOptions(services, scopeName, scopeSection, WorkloadIdentityProvider.ManagedIdentity);
+        }
+
+        /// <summary>
+        /// Configures provider options for a specific workload identity provider.
+        /// </summary>
+        /// <param name="services">The service collection.</param>
+        /// <param name="scopeName">The name of the token scope.</param>
+        /// <param name="scopeSection">The configuration section for the scope.</param>
+        /// <param name="provider">The workload identity provider to configure.</param>
+        private static void ConfigureProviderOptions(IServiceCollection services, string scopeName, IConfiguration scopeSection, WorkloadIdentityProvider provider)
+        {
+            var providerName = provider.ToString();
+            var providerSection = scopeSection.GetSection(providerName);
+
+            switch (provider)
+            {
+                case WorkloadIdentityProvider.Google:
+                    services.Configure<GoogleOptions>(scopeName, opts => providerSection.Bind(opts));
+                    break;
+                case WorkloadIdentityProvider.ManagedIdentity:
+                    services.Configure<ManagedIdentityOptions>(scopeName, opts => providerSection.Bind(opts));
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported workload identity provider: {provider}");
+            }
         }
 
         /// <summary>
@@ -83,14 +133,14 @@
                             WorkloadIdentityProvider.ManagedIdentity,
                             s => new ManagedIdentityTokenExchanger(
                                 s.GetRequiredService<ILogger<ManagedIdentityTokenExchanger>>(),
-                                s.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<ManagedIdentityOptions>>())
+                                s.GetRequiredService<IOptionsMonitor<ManagedIdentityOptions>>())
                         },
                         {
                             WorkloadIdentityProvider.Google,
                             s => new GoogleFederatedTokenExchanger(
                                 s.GetRequiredService<ILogger<GoogleFederatedTokenExchanger>>(),
                                 s.GetRequiredService<GoogleIdTokenProvider>(),
-                                s.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<GoogleOptions>>())
+                                s.GetRequiredService<IOptionsMonitor<GoogleOptions>>())
                         },
                     }));
 
