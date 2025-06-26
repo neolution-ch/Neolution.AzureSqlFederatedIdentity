@@ -1,11 +1,9 @@
-﻿namespace Neolution.AzureSqlFederatedIdentity.Internal
+﻿namespace Neolution.AzureSqlFederatedIdentity.Internal.Exchangers
 {
     using System.IdentityModel.Tokens.Jwt;
     using Google.Cloud.Iam.Credentials.V1;
     using Grpc.Core;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
-    using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Provides Google-signed ID tokens for use as client assertions in Azure SQL token exchange.
@@ -18,29 +16,24 @@
         private readonly ILogger<GoogleIdTokenProvider> logger;
 
         /// <summary>
-        /// The federated identity options.
-        /// </summary>
-        private readonly GoogleOptions options;
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="GoogleIdTokenProvider"/> class.
         /// </summary>
-        /// <param name="options">The federated identity options.</param>
         /// <param name="logger">The logger instance.</param>
-        public GoogleIdTokenProvider(IOptions<AzureSqlOptions> options, ILogger<GoogleIdTokenProvider> logger)
+        public GoogleIdTokenProvider(ILogger<GoogleIdTokenProvider> logger)
         {
-            ArgumentNullException.ThrowIfNull(options);
-
-            this.options = options.Value.Google;
             this.logger = logger;
         }
 
         /// <summary>
         /// Gets a Google-signed ID token for the configured service account and audience.
         /// </summary>
+        /// <param name="serviceAccountEmail">The service account email address.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
-        /// <returns>The Google-signed ID token.</returns>
-        public async Task<string> GetIdTokenAsync(CancellationToken cancellationToken)
+        /// <returns>
+        /// The Google-signed ID token.
+        /// </returns>
+        /// <exception cref="InvalidOperationException">ID token was not returned for service account {serviceAccountEmail}</exception>
+        public async Task<string> GetIdTokenAsync(string serviceAccountEmail, CancellationToken cancellationToken)
         {
             IAMCredentialsClient client;
             try
@@ -54,7 +47,6 @@
                 throw;
             }
 
-            var serviceAccountEmail = this.options.ServiceAccountEmail;
             var name = $"projects/-/serviceAccounts/{serviceAccountEmail}";
             this.logger.LogTrace("Requesting ID token for service account {ServiceAccountEmail}", serviceAccountEmail);
 

@@ -3,8 +3,10 @@
     using Azure.Core;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
     using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Internal;
+    using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
     /// Provides Azure SQL access tokens, with caching and automatic refresh.
@@ -12,14 +14,14 @@
     public class AzureSqlTokenProvider : IAzureSqlTokenProvider
     {
         /// <summary>
-        /// The token exchanger for Azure SQL.
-        /// </summary>
-        private readonly AzureSqlTokenExchanger tokenExchanger;
-
-        /// <summary>
         /// The logger instance for this class.
         /// </summary>
         private readonly ILogger<AzureSqlTokenProvider> logger;
+
+        /// <summary>
+        /// The options
+        /// </summary>
+        private readonly IOptions<AzureSqlOptions> options;
 
         /// <summary>
         /// The memory cache for storing tokens.
@@ -27,25 +29,34 @@
         private readonly IMemoryCache memoryCache;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureSqlTokenProvider"/> class.
+        /// The token exchanger factory.
         /// </summary>
-        /// <param name="tokenExchanger">The token exchanger for Azure SQL.</param>
+        private readonly WorkloadIdentityTokenExchangerFactory tokenExchangerFactory;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureSqlTokenProvider" /> class.
+        /// </summary>
         /// <param name="logger">The logger instance.</param>
+        /// <param name="options">The options.</param>
         /// <param name="memoryCache">The memory cache instance.</param>
+        /// <param name="tokenExchangerFactory">The token exchanger factory.</param>
+        /// <exception cref="System.ArgumentNullException">tokenExchanger</exception>
         public AzureSqlTokenProvider(
-            AzureSqlTokenExchanger tokenExchanger,
             ILogger<AzureSqlTokenProvider> logger,
-            IMemoryCache memoryCache)
+            IOptions<AzureSqlOptions> options,
+            IMemoryCache memoryCache,
+            WorkloadIdentityTokenExchangerFactory tokenExchangerFactory)
         {
-            this.tokenExchanger = tokenExchanger ?? throw new ArgumentNullException(nameof(tokenExchanger));
             this.logger = logger;
+            this.options = options;
             this.memoryCache = memoryCache;
+            this.tokenExchangerFactory = tokenExchangerFactory;
         }
 
         /// <summary>
         /// Gets the cache key for the Azure SQL access token.
         /// </summary>
-        private static string TokenCacheKey => $"{nameof(AzureSqlTokenProvider)}_AzureSqlAccessToken";
+        public static string TokenCacheKey => $"{nameof(AzureSqlTokenProvider)}_AccessToken";
 
         /// <summary>
         /// Gets a valid Azure AD access token for Azure SQL, using the cache if possible.
@@ -99,8 +110,8 @@
         /// <returns>The new Azure AD access token.</returns>
         private Task<AccessToken> FetchAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
         {
-            // Delegate token retrieval to the configured exchanger (Managed or Federated).
-            return this.tokenExchanger.GetTokenAsync(cancellationToken);
+            var exchanger = this.tokenExchangerFactory.Create(this.options.Value.Provider);
+            return exchanger.GetTokenAsync(TokenContext.AzureSql, cancellationToken);
         }
     }
 }

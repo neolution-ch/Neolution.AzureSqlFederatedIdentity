@@ -3,7 +3,10 @@
     using System;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+    using Neolution.AzureSqlFederatedIdentity.Abstractions;
     using Neolution.AzureSqlFederatedIdentity.Internal;
+    using Neolution.AzureSqlFederatedIdentity.Internal.Exchangers;
     using Neolution.AzureSqlFederatedIdentity.Options;
 
     /// <summary>
@@ -45,10 +48,17 @@
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            var section = configuration.GetSection("Neolution.WorkloadIdentity:AzureSql");
-            services.Configure<AzureSqlOptions>(options => section.Bind(options));
-            services.Configure<ManagedIdentityOptions>(options => section.GetSection("ManagedIdentity").Bind(options));
-            services.Configure<GoogleOptions>(options => section.GetSection("Google").Bind(options));
+            var section = configuration.GetSection("Neolution.WorkloadIdentity");
+            services.Configure<AzureSqlOptions>(options => section.GetSection("AzureSql").Bind(options));
+            services.Configure<BlobStorageOptions>(options => section.GetSection("BlobStorage").Bind(options));
+
+            // Register named options for Google and ManagedIdentity for AzureSql
+            services.Configure<GoogleOptions>("AzureSql", opts => section.GetSection("AzureSql:Google").Bind(opts));
+            services.Configure<ManagedIdentityOptions>("AzureSql", opts => section.GetSection("AzureSql:ManagedIdentity").Bind(opts));
+
+            // Register named options for Google and ManagedIdentity for BlobStorage
+            services.Configure<GoogleOptions>("BlobStorage", opts => section.GetSection("BlobStorage:Google").Bind(opts));
+            services.Configure<ManagedIdentityOptions>("BlobStorage", opts => section.GetSection("BlobStorage:ManagedIdentity").Bind(opts));
 
             RegisterServices(services);
             return services;
@@ -62,9 +72,30 @@
         {
             services.AddMemoryCache();
 
-            // Register token provider implementations for DI
             services.AddSingleton<GoogleIdTokenProvider>();
-            services.AddSingleton<AzureSqlTokenProvider>();
+
+            services.AddSingleton<WorkloadIdentityTokenExchangerFactory>(sp =>
+                new WorkloadIdentityTokenExchangerFactory(
+                    sp,
+                    new Dictionary<WorkloadIdentityProvider, Func<IServiceProvider, IWorkloadIdentityTokenExchanger>>
+                    {
+                        {
+                            WorkloadIdentityProvider.ManagedIdentity,
+                            s => new ManagedIdentityTokenExchanger(
+                                s.GetRequiredService<ILogger<ManagedIdentityTokenExchanger>>(),
+                                s.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<ManagedIdentityOptions>>())
+                        },
+                        {
+                            WorkloadIdentityProvider.Google,
+                            s => new GoogleFederatedTokenExchanger(
+                                s.GetRequiredService<ILogger<GoogleFederatedTokenExchanger>>(),
+                                s.GetRequiredService<GoogleIdTokenProvider>(),
+                                s.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<GoogleOptions>>())
+                        },
+                    }));
+
+            // Register the main Azure SQL token provider
+            services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
         }
     }
 }
