@@ -48,8 +48,8 @@
         private static void ConfigureWorkloadIdentityOptions(IServiceCollection services, IConfiguration configuration)
         {
             var section = configuration.GetSection("Neolution.WorkloadIdentity");
-            ConfigureTokenScopeOptions(services, section, TokenScope.AzureSql);
-            ConfigureTokenScopeOptions(services, section, TokenScope.BlobStorage);
+            ConfigureTokenScopeOptions(services, section, AzureTokenScope.AzureSql);
+            ConfigureTokenScopeOptions(services, section, AzureTokenScope.BlobStorage);
         }
 
         /// <summary>
@@ -75,10 +75,10 @@
 
             switch (scopeName)
             {
-                case nameof(TokenScope.AzureSql):
+                case nameof(AzureTokenScope.AzureSql):
                     services.Configure<AzureSqlOptions>(options => scopeSection.Bind(options));
                     break;
-                case nameof(TokenScope.BlobStorage):
+                case nameof(AzureTokenScope.BlobStorage):
                     services.Configure<BlobStorageOptions>(options => scopeSection.Bind(options));
                     break;
                 default:
@@ -120,8 +120,6 @@
         /// <param name="services">The service collection.</param>
         private static void RegisterServices(IServiceCollection services)
         {
-            services.AddMemoryCache();
-
             services.AddSingleton<GoogleIdTokenProvider>();
 
             services.AddSingleton<WorkloadIdentityTokenExchangerFactory>(sp =>
@@ -144,8 +142,10 @@
                         },
                     }));
 
-            // Register the main Azure SQL token provider
+            // caching + main providers
+            services.AddMemoryCache();
             services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
+            services.AddSingleton<IBlobStorageTokenProvider, BlobStorageTokenProvider>();
         }
     }
 }

@@ -16,6 +16,6 @@
         /// <param name="scope">The logical context for which the access token is requested.</param>
         /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the access token.</returns>
-        Task<AccessToken> GetTokenAsync(TokenScope scope, CancellationToken cancellationToken);
+        Task<AccessToken> GetTokenAsync(AzureTokenScope scope, CancellationToken cancellationToken);
     }
 }

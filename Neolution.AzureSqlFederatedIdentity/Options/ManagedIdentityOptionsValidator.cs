@@ -19,14 +19,14 @@
         {
             ArgumentNullException.ThrowIfNull(options);
 
-            if (options.UseSystemAssigned)
+            if (options.UseSystemAssignedIdentity)
             {
                 return ValidateOptionsResult.Success;
             }
 
             if (string.IsNullOrWhiteSpace(options.ClientId))
             {
-                return ValidateOptionsResult.Fail("ClientId must be provided when UseSystemAssigned is false (user-assigned identity).");
+                return ValidateOptionsResult.Fail("ClientId must be provided when UseSystemAssignedIdentity is false (user-assigned identity).");
             }
 
             return ValidateOptionsResult.Success;

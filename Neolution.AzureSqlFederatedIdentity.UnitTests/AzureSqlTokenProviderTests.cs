@@ -60,7 +60,7 @@
 
             // Assert
             result.ShouldBe(token);
-            await exchanger.DidNotReceive().GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>());
+            await exchanger.DidNotReceive().GetTokenAsync(Arg.Any<AzureTokenScope>(), Arg.Any<CancellationToken>());
         }
 
         /// <summary>
@@ -77,7 +77,7 @@
             var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
             var options = Options.Create(new AzureSqlOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
             var exchanger = this.fixture.Create<IWorkloadIdentityTokenExchanger>();
-            exchanger.GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>())
+            exchanger.GetTokenAsync(Arg.Any<AzureTokenScope>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(accessToken));
             var factory = new WorkloadIdentityTokenExchangerFactory(
                 Substitute.For<IServiceProvider>(),
@@ -94,7 +94,7 @@
             result.ShouldBe(token);
             memoryCache.TryGetValue(AzureSqlTokenProvider.TokenCacheKey, out AccessToken cached).ShouldBeTrue();
             cached.Token.ShouldBe(token);
-            await exchanger.Received(1).GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>());
+            await exchanger.Received(1).GetTokenAsync(Arg.Any<AzureTokenScope>(), Arg.Any<CancellationToken>());
         }
     }
 }

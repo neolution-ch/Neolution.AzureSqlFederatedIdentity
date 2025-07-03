@@ -111,7 +111,7 @@
         private Task<AccessToken> FetchAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
         {
             var exchanger = this.tokenExchangerFactory.Create(this.options.Value.Provider);
-            return exchanger.GetTokenAsync(TokenScope.AzureSql, cancellationToken);
+            return exchanger.GetTokenAsync(AzureTokenScope.AzureSql, cancellationToken);
         }
     }
 }

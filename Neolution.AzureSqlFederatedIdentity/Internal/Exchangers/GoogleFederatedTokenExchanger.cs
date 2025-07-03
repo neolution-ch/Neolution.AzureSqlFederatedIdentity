@@ -51,7 +51,7 @@
         /// <param name="scope">The logical context for which the access token is requested.</param>
         /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>An <see cref="AccessToken" /> containing the Azure AD access token.</returns>
-        public async Task<AccessToken> GetTokenAsync(TokenScope scope, CancellationToken cancellationToken)
+        public async Task<AccessToken> GetTokenAsync(AzureTokenScope scope, CancellationToken cancellationToken)
         {
             var options = this.googleOptionsMonitor.Get(scope.GetOptionsName());
             var credential = new ClientAssertionCredential(
