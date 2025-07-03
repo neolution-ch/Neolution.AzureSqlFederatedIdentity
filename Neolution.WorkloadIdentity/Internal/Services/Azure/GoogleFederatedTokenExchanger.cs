@@ -1,12 +1,13 @@
-﻿namespace Neolution.WorkloadIdentity.Internal.Exchangers
+﻿namespace Neolution.WorkloadIdentity.Internal.Services.Azure
 {
     using System.Threading;
     using System.Threading.Tasks;
-    using Azure.Core;
-    using Azure.Identity;
+    using global::Azure.Core;
+    using global::Azure.Identity;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Neolution.WorkloadIdentity.Abstractions;
+    using Neolution.WorkloadIdentity.Internal.Services.Google;
     using Neolution.WorkloadIdentity.Options;
 
     /// <summary>
@@ -51,9 +52,9 @@
         /// <param name="scope">The logical context for which the access token is requested.</param>
         /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>An <see cref="AccessToken" /> containing the Azure AD access token.</returns>
-        public async Task<AccessToken> GetTokenAsync(AzureTokenScope scope, CancellationToken cancellationToken)
+        public async Task<AccessToken> GetTokenAsync(TokenScope scope, CancellationToken cancellationToken)
         {
-            var options = this.googleOptionsMonitor.Get(scope.GetOptionsName());
+            var options = this.googleOptionsMonitor.Get(scope.ToString());
             var credential = new ClientAssertionCredential(
                 options.TenantId,
                 options.ClientId,

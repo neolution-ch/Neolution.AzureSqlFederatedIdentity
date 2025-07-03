@@ -1,9 +1,9 @@
-﻿namespace Neolution.WorkloadIdentity.Internal.Exchangers
+﻿namespace Neolution.WorkloadIdentity.Internal.Services.Google
 {
     using System.IdentityModel.Tokens.Jwt;
-    using Google.Cloud.Iam.Credentials.V1;
+    using global::Google.Cloud.Iam.Credentials.V1;
+    using global::Microsoft.Extensions.Logging;
     using Grpc.Core;
-    using Microsoft.Extensions.Logging;
 
     /// <summary>
     /// Provides Google-signed ID tokens for use as client assertions in Azure SQL token exchange.

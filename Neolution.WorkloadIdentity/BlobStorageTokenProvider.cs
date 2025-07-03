@@ -100,7 +100,7 @@
         private Task<AccessToken> FetchBlobStorageAccessTokenAsync(CancellationToken cancellationToken)
         {
             var exchanger = this.tokenExchangerFactory.Create(this.options.Value.Provider);
-            return exchanger.GetTokenAsync(AzureTokenScope.BlobStorage, cancellationToken);
+            return exchanger.GetTokenAsync(TokenScope.BlobStorage, cancellationToken);
         }
     }
 }

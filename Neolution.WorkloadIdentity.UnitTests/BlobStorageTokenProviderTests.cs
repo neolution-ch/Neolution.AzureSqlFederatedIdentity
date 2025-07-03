@@ -2,6 +2,8 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
     using AutoFixture;
     using AutoFixture.AutoNSubstitute;
     using Azure.Core;
@@ -13,11 +15,12 @@
     using Neolution.WorkloadIdentity.Options;
     using NSubstitute;
     using Shouldly;
+    using Xunit;
 
     /// <summary>
-    /// Unit tests for the <see cref="AzureSqlTokenProvider"/> class.
+    /// Unit tests for the <see cref="BlobStorageTokenProvider"/> class.
     /// </summary>
-    public class AzureSqlTokenProviderTests
+    public class BlobStorageTokenProviderTests
     {
         /// <summary>
         /// Provides a fixture for creating test objects.
@@ -25,27 +28,28 @@
         private readonly IFixture fixture;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureSqlTokenProviderTests"/> class.
+        /// Initializes a new instance of the <see cref="BlobStorageTokenProviderTests"/> class.
         /// </summary>
-        public AzureSqlTokenProviderTests()
+        public BlobStorageTokenProviderTests()
         {
             this.fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
         }
 
         /// <summary>
-        /// Verifies that a cached token is returned when available.
+        /// Tests that when a valid token is present in the cache, the cached token is returned
+        /// without invoking the token exchanger.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
-        public async Task Given_ValidCache_When_GetAzureSqlAccessTokenAsync_Then_ReturnsCachedToken()
+        public async Task Given_ValidCache_When_GetBlobStorageAccessTokenAsync_Then_ReturnsCachedToken()
         {
             // Arrange
             var token = this.fixture.Create<string>();
             var accessToken = new AccessToken(token, DateTimeOffset.UtcNow.AddMinutes(10));
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
-            memoryCache.Set(AzureSqlTokenProvider.TokenCacheKey, accessToken);
-            var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var options = Options.Create(new AzureSqlOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
+            memoryCache.Set(BlobStorageTokenProvider.TokenCacheKey, accessToken);
+            var logger = this.fixture.Create<ILogger<BlobStorageTokenProvider>>();
+            var options = Options.Create(new BlobStorageOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
             var exchanger = this.fixture.Create<IWorkloadIdentityTokenExchanger>();
             var factory = new WorkloadIdentityTokenExchangerFactory(
                 Substitute.For<IServiceProvider>(),
@@ -53,10 +57,10 @@
                 {
                     [WorkloadIdentityProvider.ManagedIdentity] = sp => exchanger,
                 });
-            var provider = new AzureSqlTokenProvider(logger, options, memoryCache, factory);
+            var provider = new BlobStorageTokenProvider(logger, options, memoryCache, factory);
 
             // Act
-            var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            var result = await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
 
             // Assert
             result.ShouldBe(token);
@@ -64,18 +68,19 @@
         }
 
         /// <summary>
-        /// Verifies that a token is fetched and cached when no cached token is available.
+        /// Tests that when no token is present in the cache, a new token is fetched using the token exchanger
+        /// and cached for future use.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
-        public async Task Given_NoCache_When_GetAzureSqlAccessTokenAsync_Then_FetchesAndCachesToken()
+        public async Task Given_NoCache_When_GetBlobStorageAccessTokenAsync_Then_FetchesAndCachesToken()
         {
             // Arrange
             var token = this.fixture.Create<string>();
             var accessToken = new AccessToken(token, DateTimeOffset.UtcNow.AddMinutes(10));
             var memoryCache = new MemoryCache(new MemoryCacheOptions());
-            var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
-            var options = Options.Create(new AzureSqlOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
+            var logger = this.fixture.Create<ILogger<BlobStorageTokenProvider>>();
+            var options = Options.Create(new BlobStorageOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
             var exchanger = this.fixture.Create<IWorkloadIdentityTokenExchanger>();
             exchanger.GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(accessToken));
@@ -85,14 +90,14 @@
                 {
                     [WorkloadIdentityProvider.ManagedIdentity] = sp => exchanger,
                 });
-            var provider = new AzureSqlTokenProvider(logger, options, memoryCache, factory);
+            var provider = new BlobStorageTokenProvider(logger, options, memoryCache, factory);
 
             // Act
-            var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            var result = await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
 
             // Assert
             result.ShouldBe(token);
-            memoryCache.TryGetValue(AzureSqlTokenProvider.TokenCacheKey, out AccessToken cached).ShouldBeTrue();
+            memoryCache.TryGetValue(BlobStorageTokenProvider.TokenCacheKey, out AccessToken cached).ShouldBeTrue();
             cached.Token.ShouldBe(token);
             await exchanger.Received(1).GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>());
         }

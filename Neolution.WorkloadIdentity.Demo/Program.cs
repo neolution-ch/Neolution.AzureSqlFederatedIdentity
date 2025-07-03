@@ -17,7 +17,7 @@ var app = builder.Build();
 
 app.UseStaticFiles();
 
-app.MapGet("/", () => Results.Ok("Cloud Run to Azure SQL via Workload Identity Federation."));
+app.MapGet("/", () => Results.Ok("Neolution Workload Identity Federation Demo"));
 
 app.MapGet("/test", async ([FromServices] IAppDbContextFactory dbFactory, [FromServices] IBlobStorageService blobService, CancellationToken cancellationToken) =>
 {

@@ -1,7 +1,7 @@
 ﻿namespace Neolution.WorkloadIdentity.Internal
 {
     /// <summary>
-    /// Metadata for a token scope: the options name and the corresponding OAuth2 scope identifier URI.
+    /// Metadata for a token scope: the corresponding OAuth2 scope identifier URI and provider.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field)]
     public sealed class TokenScopeMetadataAttribute : Attribute
@@ -9,22 +9,22 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="TokenScopeMetadataAttribute"/> class.
         /// </summary>
-        /// <param name="optionsName">The name of the options associated with the token scope.</param>
         /// <param name="identifier">The OAuth2 scope identifier URI.</param>
-        public TokenScopeMetadataAttribute(string optionsName, string identifier)
+        /// <param name="provider">The identity provider.</param>
+        public TokenScopeMetadataAttribute(string identifier, IdentityProvider provider)
         {
-            this.OptionsName = optionsName;
             this.Identifier = identifier;
+            this.Provider = provider;
         }
-
-        /// <summary>
-        /// Gets the name of the options associated with the token scope.
-        /// </summary>
-        public string OptionsName { get; }
 
         /// <summary>
         /// Gets the OAuth2 scope identifier URI.
         /// </summary>
         public string Identifier { get; }
+
+        /// <summary>
+        /// Gets the identity provider.
+        /// </summary>
+        public IdentityProvider Provider { get; }
     }
 }

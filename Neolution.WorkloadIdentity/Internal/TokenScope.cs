@@ -1,20 +1,20 @@
 ﻿namespace Neolution.WorkloadIdentity.Internal
 {
     /// <summary>
-    /// Represents the Azure OAuth2 token scope for which a token is requested.
+    /// Represents the logical token scope for which a token is requested.
     /// </summary>
-    public enum AzureTokenScope
+    public enum TokenScope
     {
         /// <summary>
         /// Represents the token scope for Azure SQL.
         /// </summary>
-        [TokenScopeMetadata(nameof(AzureSql), "https://database.windows.net/.default")]
+        [TokenScopeMetadata("https://database.windows.net/.default", IdentityProvider.Azure)]
         AzureSql = 0,
 
         /// <summary>
         /// Represents the token scope for Blob Storage.
         /// </summary>
-        [TokenScopeMetadata(nameof(BlobStorage), "https://storage.azure.com/.default")]
+        [TokenScopeMetadata("https://storage.azure.com/.default", IdentityProvider.Azure)]
         BlobStorage = 1,
     }
 }

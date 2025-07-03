@@ -7,7 +7,9 @@
     using Microsoft.Extensions.Options;
     using Neolution.WorkloadIdentity.Abstractions;
     using Neolution.WorkloadIdentity.Internal;
-    using Neolution.WorkloadIdentity.Internal.Exchangers;
+    using Neolution.WorkloadIdentity.Internal.Providers.Azure;
+    using Neolution.WorkloadIdentity.Internal.Services.Azure;
+    using Neolution.WorkloadIdentity.Internal.Services.Google;
     using Neolution.WorkloadIdentity.Options;
 
     /// <summary>
@@ -50,43 +52,42 @@
         private static void ConfigureWorkloadIdentityOptions(IServiceCollection services, IConfiguration configuration)
         {
             var section = configuration.GetSection("Neolution.WorkloadIdentity");
-            ConfigureResourceTypeOptions(services, section, AzureTokenScope.AzureSql);
-            ConfigureResourceTypeOptions(services, section, AzureTokenScope.BlobStorage);
+            ConfigureResourceTypeOptions(WorkloadIdentityResourceType.AzureSql, section, services);
+            ConfigureResourceTypeOptions(WorkloadIdentityResourceType.BlobStorage, section, services);
         }
 
         /// <summary>
-        /// Configures token scope options for a specific token scope (e.g., Azure SQL, Blob Storage).
+        /// Configures token resourceType options for a specific token resourceType (e.g., Azure SQL, Blob Storage).
         /// </summary>
-        /// <typeparam name="TScope">The type of the token scope.</typeparam>
+        /// <param name="resourceType">The token resourceType to configure.</param>
+        /// <param name="configuration">The root configuration section.</param>
         /// <param name="services">The service collection.</param>
-        /// <param name="rootSection">The root configuration section.</param>
-        /// <param name="scope">The token scope to configure.</param>
-        private static void ConfigureResourceTypeOptions<TScope>(IServiceCollection services, IConfiguration rootSection, TScope scope)
+        private static void ConfigureResourceTypeOptions(WorkloadIdentityResourceType resourceType, IConfiguration configuration, IServiceCollection services)
         {
-            ArgumentNullException.ThrowIfNull(scope);
+            ArgumentNullException.ThrowIfNull(resourceType);
 
-            var sectionName = scope.ToString();
-            if (string.IsNullOrWhiteSpace(sectionName))
+            var scopeName = resourceType.ToString();
+            if (string.IsNullOrWhiteSpace(scopeName))
             {
-                throw new ArgumentException("Scope name cannot be null or whitespace.", nameof(scope));
+                throw new ArgumentException("Scope name cannot be null or whitespace.", nameof(resourceType));
             }
 
-            var scopeSection = rootSection.GetSection(sectionName);
+            var scopeSection = configuration.GetSection(scopeName);
 
-            switch (sectionName)
+            switch (resourceType)
             {
-                case "AzureSql":
+                case WorkloadIdentityResourceType.AzureSql:
                     services.Configure<AzureSqlOptions>(options => scopeSection.Bind(options));
                     break;
-                case "BlobStorage":
+                case WorkloadIdentityResourceType.BlobStorage:
                     services.Configure<BlobStorageOptions>(options => scopeSection.Bind(options));
                     break;
                 default:
-                    throw new InvalidOperationException($"Unsupported resource type section: {sectionName}");
+                    throw new InvalidOperationException($"Unsupported resource type section: {scopeName}");
             }
 
-            ConfigureProviderOptions(services, sectionName, scopeSection, WorkloadIdentityProvider.Google);
-            ConfigureProviderOptions(services, sectionName, scopeSection, WorkloadIdentityProvider.ManagedIdentity);
+            ConfigureProviderOptions(services, scopeName, scopeSection, WorkloadIdentityProvider.Google);
+            ConfigureProviderOptions(services, scopeName, scopeSection, WorkloadIdentityProvider.ManagedIdentity);
         }
 
         /// <summary>
@@ -144,8 +145,9 @@
                         },
                     }));
 
-            // caching + main providers
             services.AddMemoryCache();
+            services.AddHostedService<TokenRefreshService>();
+
             services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
             services.AddSingleton<IBlobStorageTokenProvider, BlobStorageTokenProvider>();
         }
