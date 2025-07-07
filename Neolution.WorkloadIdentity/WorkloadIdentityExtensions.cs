@@ -128,6 +128,7 @@
         /// <param name="services">The service collection.</param>
         private static void RegisterServices(IServiceCollection services)
         {
+            services.AddLogging();
             services.AddSingleton<GoogleIdTokenProvider>();
 
             // Register concrete exchangers for DI
