@@ -1,6 +1,4 @@
-﻿[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Neolution.WorkloadIdentity.UnitTests")]
-
-namespace Neolution.WorkloadIdentity.Internal.Services.Azure
+﻿namespace Neolution.WorkloadIdentity.Internal.Services.Azure
 {
     using System.Threading;
     using System.Threading.Tasks;
@@ -49,10 +47,14 @@ namespace Neolution.WorkloadIdentity.Internal.Services.Azure
             var options = this.managedIdentityOptionsMonitor.Get(scope.ToString());
             this.logger.LogTrace("Getting Azure AD access token for {Identifier} using Managed Identity", scope);
             var requestContext = new TokenRequestContext(new[] { scope.GetIdentifier() });
+
+            // Create a ManagedIdentityCredential with or without client ID
             var credential = string.IsNullOrWhiteSpace(options.ClientId)
                 ? new ManagedIdentityCredential()
                 : new ManagedIdentityCredential(options.ClientId);
+
             var token = await credential.GetTokenAsync(requestContext, cancellationToken).ConfigureAwait(false);
+
             this.logger.LogDebug("Obtained Azure AD access token via Managed Identity, length: {Length}", token.Token.Length);
             return token;
         }
