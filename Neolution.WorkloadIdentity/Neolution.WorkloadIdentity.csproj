@@ -15,8 +15,8 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageTags>azure sql federated identity google cloud iam credentials ad authentication</PackageTags>
-    <Description>Federated identity integration for Azure SQL using Google Cloud IAM Credentials and Azure AD.</Description>
+    <PackageTags>azure,workload-identity,managed-identity,federated-identity,azure-sql,blob-storage,token-caching</PackageTags>
+    <Description>Neolution.WorkloadIdentity is a .NET library for seamless acquisition, caching, and automatic refresh of Azure AD access tokens for Azure SQL and Azure Blob Storage. It supports both Azure Managed Identity and Google Workload Identity Federation.</Description>
     <Copyright>Copyright (c) 2025 Neolution AG</Copyright>
   </PropertyGroup>
 
