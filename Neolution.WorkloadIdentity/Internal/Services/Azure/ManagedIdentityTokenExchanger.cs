@@ -1,4 +1,6 @@
-﻿namespace Neolution.WorkloadIdentity.Internal.Providers.Azure
+﻿[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Neolution.WorkloadIdentity.UnitTests")]
+
+namespace Neolution.WorkloadIdentity.Internal.Services.Azure
 {
     using System.Threading;
     using System.Threading.Tasks;
@@ -6,7 +8,6 @@
     using global::Azure.Identity;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
-    using Neolution.WorkloadIdentity.Abstractions;
     using Neolution.WorkloadIdentity.Options;
 
     /// <summary>

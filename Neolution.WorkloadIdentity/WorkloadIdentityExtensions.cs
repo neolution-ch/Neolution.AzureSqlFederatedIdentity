@@ -7,7 +7,6 @@
     using Microsoft.Extensions.Options;
     using Neolution.WorkloadIdentity.Abstractions;
     using Neolution.WorkloadIdentity.Internal;
-    using Neolution.WorkloadIdentity.Internal.Providers.Azure;
     using Neolution.WorkloadIdentity.Internal.Services.Azure;
     using Neolution.WorkloadIdentity.Internal.Services.Google;
     using Neolution.WorkloadIdentity.Options;
@@ -15,7 +14,7 @@
     /// <summary>
     /// Provides extension methods for configuring Azure Workload Identity services.
     /// </summary>
-    public static class AzureSqlWorkloadIdentityExtensions
+    public static class WorkloadIdentityExtensions
     {
         /// <summary>
         /// Adds Azure Workload Identity services with default options.
@@ -54,6 +53,13 @@
             var section = configuration.GetSection("Neolution.WorkloadIdentity");
             ConfigureResourceTypeOptions(WorkloadIdentityResourceType.AzureSql, section, services);
             ConfigureResourceTypeOptions(WorkloadIdentityResourceType.BlobStorage, section, services);
+
+            // Register option validators
+            services.AddSingleton<IValidateOptions<WorkloadIdentityOptions>, WorkloadIdentityOptionsValidator>();
+            services.AddSingleton<IValidateOptions<AzureSqlOptions>, AzureSqlOptionsValidator>();
+            services.AddSingleton<IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
+            services.AddSingleton<IValidateOptions<GoogleOptions>, GoogleOptionsValidator>();
+            services.AddSingleton<IValidateOptions<ManagedIdentityOptions>, ManagedIdentityOptionsValidator>();
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿namespace Neolution.WorkloadIdentity.Internal
+﻿namespace Neolution.WorkloadIdentity
 {
     /// <summary>
     /// Metadata for a token scope: the corresponding OAuth2 scope identifier URI and provider.

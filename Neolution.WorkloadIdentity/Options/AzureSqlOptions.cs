@@ -3,7 +3,7 @@
     /// <summary>
     /// Root configuration for Azure SQL identity authentication.
     /// </summary>
-    public class AzureSqlOptions
+    public class AzureSqlOptions : IProviderOptions
     {
         /// <summary>
         /// Gets or sets the provider to use for identity: ManagedIdentity, Google, etc.

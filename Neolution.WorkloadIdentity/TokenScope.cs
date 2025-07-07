@@ -1,4 +1,4 @@
-﻿namespace Neolution.WorkloadIdentity.Internal
+﻿namespace Neolution.WorkloadIdentity
 {
     /// <summary>
     /// Represents the logical token scope for which a token is requested.

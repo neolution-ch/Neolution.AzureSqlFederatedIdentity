@@ -1,4 +1,4 @@
-﻿namespace Neolution.WorkloadIdentity.Internal
+﻿namespace Neolution.WorkloadIdentity
 {
     /// <summary>
     /// Supported identity providers for token scopes.

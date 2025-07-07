@@ -1,9 +1,8 @@
-﻿namespace Neolution.WorkloadIdentity.Abstractions
+﻿namespace Neolution.WorkloadIdentity.Internal
 {
     using System.Threading;
     using System.Threading.Tasks;
     using Azure.Core;
-    using Neolution.WorkloadIdentity.Internal;
 
     /// <summary>
     /// Defines a contract for exchanging workload identity tokens.

@@ -8,7 +8,7 @@
     /// <summary>
     /// Provides Google-signed ID tokens for use as client assertions in Azure SQL token exchange.
     /// </summary>
-    public class GoogleIdTokenProvider
+    internal class GoogleIdTokenProvider
     {
         /// <summary>
         /// The logger instance for this class.

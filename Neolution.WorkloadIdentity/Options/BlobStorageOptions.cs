@@ -3,7 +3,7 @@
     /// <summary>
     /// Configuration for Azure Blob Storage workload identity.
     /// </summary>
-    public class BlobStorageOptions
+    public class BlobStorageOptions : IProviderOptions
     {
         /// <summary>
         /// Gets or sets the provider to use: ManagedIdentity or Google (or future providers).
