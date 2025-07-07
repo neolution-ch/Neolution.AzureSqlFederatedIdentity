@@ -100,5 +100,43 @@
             cached.Token.ShouldBe(token);
             await exchanger.Received(1).GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>());
         }
+
+        /// <summary>
+        /// Tests that when a near-expiry token is present in the cache, the token is refreshed
+        /// by invoking the token exchanger.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_NearExpiryCache_When_GetBlobStorageAccessTokenAsync_Then_RefreshesToken()
+        {
+            // Arrange
+            var tokenOld = this.fixture.Create<string>();
+            var accessTokenOld = new AccessToken(tokenOld, DateTimeOffset.UtcNow.AddMinutes(5));
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            memoryCache.Set(BlobStorageTokenProvider.TokenCacheKey, accessTokenOld);
+            var logger = this.fixture.Create<ILogger<BlobStorageTokenProvider>>();
+            var options = Options.Create(new BlobStorageOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
+            var exchanger = this.fixture.Create<IWorkloadIdentityTokenExchanger>();
+            var tokenNew = this.fixture.Create<string>();
+            var accessTokenNew = new AccessToken(tokenNew, DateTimeOffset.UtcNow.AddMinutes(10));
+            exchanger.GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(accessTokenNew));
+            var factory = new WorkloadIdentityTokenExchangerFactory(
+                Substitute.For<IServiceProvider>(),
+                new Dictionary<WorkloadIdentityProvider, Func<IServiceProvider, IWorkloadIdentityTokenExchanger>>
+                {
+                    [WorkloadIdentityProvider.ManagedIdentity] = sp => exchanger,
+                });
+            var provider = new BlobStorageTokenProvider(logger, options, memoryCache, factory);
+
+            // Act
+            var result = await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
+
+            // Assert
+            result.ShouldBe(tokenNew);
+            memoryCache.TryGetValue(BlobStorageTokenProvider.TokenCacheKey, out AccessToken cached).ShouldBeTrue();
+            cached.Token.ShouldBe(tokenNew);
+            await exchanger.Received(1).GetTokenAsync(TokenScope.BlobStorage, Arg.Any<CancellationToken>());
+        }
     }
 }

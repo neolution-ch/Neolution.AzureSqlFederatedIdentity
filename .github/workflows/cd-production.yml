@@ -31,7 +31,7 @@ jobs:
         run: |
           dotnet restore
           dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} -p:Version=$NUGET_VERSION
-          dotnet pack "Neolution.AzureSqlFederatedIdentity/Neolution.AzureSqlFederatedIdentity.csproj" --configuration ${{ env.BUILD_CONFIGURATION }} --no-build -p:PackageVersion=$NUGET_VERSION
+          dotnet pack "Neolution.WorkloadIdentity/Neolution.WorkloadIdentity.csproj" --configuration ${{ env.BUILD_CONFIGURATION }} --no-build -p:PackageVersion=$NUGET_VERSION
 
       - name: Push NuGet package
         run: dotnet nuget push -k $NUGET_AUTH_TOKEN  **/bin/Release/*.nupkg

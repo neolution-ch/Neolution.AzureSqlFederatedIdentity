@@ -95,5 +95,42 @@
             cached.Token.ShouldBe(token);
             await exchanger.Received(1).GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>());
         }
+
+        /// <summary>
+        /// Verifies that near-expiry cache triggers a refresh in AzureSqlTokenProvider.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_NearExpiryCache_When_GetAzureSqlAccessTokenAsync_Then_RefreshesToken()
+        {
+            // Arrange
+            var tokenOld = this.fixture.Create<string>();
+            var accessTokenOld = new AccessToken(tokenOld, DateTimeOffset.UtcNow.AddMinutes(5));
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            memoryCache.Set(AzureSqlTokenProvider.TokenCacheKey, accessTokenOld);
+            var logger = this.fixture.Create<ILogger<AzureSqlTokenProvider>>();
+            var options = Options.Create(new AzureSqlOptions { Provider = WorkloadIdentityProvider.ManagedIdentity });
+            var exchanger = this.fixture.Create<IWorkloadIdentityTokenExchanger>();
+            var tokenNew = this.fixture.Create<string>();
+            var accessTokenNew = new AccessToken(tokenNew, DateTimeOffset.UtcNow.AddMinutes(10));
+            exchanger.GetTokenAsync(Arg.Any<TokenScope>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult(accessTokenNew));
+            var factory = new WorkloadIdentityTokenExchangerFactory(
+                Substitute.For<IServiceProvider>(),
+                new Dictionary<WorkloadIdentityProvider, Func<IServiceProvider, IWorkloadIdentityTokenExchanger>>
+                {
+                    [WorkloadIdentityProvider.ManagedIdentity] = sp => exchanger,
+                });
+            var provider = new AzureSqlTokenProvider(logger, options, memoryCache, factory);
+
+            // Act
+            var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+
+            // Assert
+            result.ShouldBe(tokenNew);
+            memoryCache.TryGetValue(AzureSqlTokenProvider.TokenCacheKey, out AccessToken cached).ShouldBeTrue();
+            cached.Token.ShouldBe(tokenNew);
+            await exchanger.Received(1).GetTokenAsync(TokenScope.AzureSql, Arg.Any<CancellationToken>());
+        }
     }
 }

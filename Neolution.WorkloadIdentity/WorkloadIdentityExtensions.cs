@@ -3,7 +3,6 @@
     using System;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Neolution.WorkloadIdentity.Abstractions;
     using Neolution.WorkloadIdentity.Internal;
@@ -131,6 +130,10 @@
         {
             services.AddSingleton<GoogleIdTokenProvider>();
 
+            // Register concrete exchangers for DI
+            services.AddSingleton<ManagedIdentityTokenExchanger>();
+            services.AddSingleton<GoogleFederatedTokenExchanger>();
+
             services.AddSingleton<WorkloadIdentityTokenExchangerFactory>(sp =>
                 new WorkloadIdentityTokenExchangerFactory(
                     sp,
@@ -138,16 +141,11 @@
                     {
                         {
                             WorkloadIdentityProvider.ManagedIdentity,
-                            s => new ManagedIdentityTokenExchanger(
-                                s.GetRequiredService<ILogger<ManagedIdentityTokenExchanger>>(),
-                                s.GetRequiredService<IOptionsMonitor<ManagedIdentityOptions>>())
+                            s => s.GetRequiredService<ManagedIdentityTokenExchanger>()
                         },
                         {
                             WorkloadIdentityProvider.Google,
-                            s => new GoogleFederatedTokenExchanger(
-                                s.GetRequiredService<ILogger<GoogleFederatedTokenExchanger>>(),
-                                s.GetRequiredService<GoogleIdTokenProvider>(),
-                                s.GetRequiredService<IOptionsMonitor<GoogleOptions>>())
+                            s => s.GetRequiredService<GoogleFederatedTokenExchanger>()
                         },
                     }));
 

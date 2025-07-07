@@ -1,31 +1,32 @@
-﻿using AutoFixture;
-using AutoFixture.AutoNSubstitute;
-using Neolution.WorkloadIdentity.Options;
-using Shouldly;
-using Xunit;
-
-namespace Neolution.WorkloadIdentity.UnitTests
+﻿namespace Neolution.WorkloadIdentity.UnitTests
 {
+    using Neolution.WorkloadIdentity.Options;
+    using Shouldly;
+
+    /// <summary>
+    /// Unit tests for the <see cref="ManagedIdentityOptionsValidator"/> class.
+    /// </summary>
     public class ManagedIdentityOptionsValidatorTests
     {
-        private readonly IFixture fixture;
-
-        public ManagedIdentityOptionsValidatorTests()
-        {
-            fixture = new Fixture().Customize(new AutoNSubstituteCustomization());
-        }
-
+        /// <summary>
+        /// Validates that the method fails when null options are provided.
+        /// </summary>
         [Fact]
         public void Given_NullOptions_When_ValidateStatic_Then_Fails()
         {
             // Act
-            var result = ManagedIdentityOptionsValidator.ValidateStatic(null, null);
+            var result = ManagedIdentityOptionsValidator.ValidateStatic(null, new ManagedIdentityOptions());
 
             // Assert
+            result.ShouldNotBeNull();
             result.Succeeded.ShouldBeFalse();
+            result.FailureMessage.ShouldNotBeNull();
             result.FailureMessage.ShouldContain(nameof(ManagedIdentityOptions));
         }
 
+        /// <summary>
+        /// Validates that the method succeeds when using a system-assigned identity.
+        /// </summary>
         [Fact]
         public void Given_UseSystemAssignedIdentity_When_ValidateStatic_Then_Succeeds()
         {
@@ -39,6 +40,9 @@ namespace Neolution.WorkloadIdentity.UnitTests
             result.Succeeded.ShouldBeTrue();
         }
 
+        /// <summary>
+        /// Validates that the method fails when no client ID is provided.
+        /// </summary>
         [Fact]
         public void Given_NoClientId_When_ValidateStatic_Then_Fails()
         {
@@ -49,10 +53,15 @@ namespace Neolution.WorkloadIdentity.UnitTests
             var result = ManagedIdentityOptionsValidator.ValidateStatic("name", options);
 
             // Assert
+            result.ShouldNotBeNull();
             result.Succeeded.ShouldBeFalse();
+            result.FailureMessage.ShouldNotBeNull();
             result.FailureMessage.ShouldContain(nameof(ManagedIdentityOptions.ClientId));
         }
 
+        /// <summary>
+        /// Validates that the method succeeds when a client ID is provided.
+        /// </summary>
         [Fact]
         public void Given_ClientId_When_ValidateStatic_Then_Succeeds()
         {
