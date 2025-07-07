@@ -52,13 +52,6 @@
             var section = configuration.GetSection("Neolution.WorkloadIdentity");
             ConfigureResourceTypeOptions(WorkloadIdentityResourceType.AzureSql, section, services);
             ConfigureResourceTypeOptions(WorkloadIdentityResourceType.BlobStorage, section, services);
-
-            // Register option validators
-            services.AddSingleton<IValidateOptions<WorkloadIdentityOptions>, WorkloadIdentityOptionsValidator>();
-            services.AddSingleton<IValidateOptions<AzureSqlOptions>, AzureSqlOptionsValidator>();
-            services.AddSingleton<IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
-            services.AddSingleton<IValidateOptions<GoogleOptions>, GoogleOptionsValidator>();
-            services.AddSingleton<IValidateOptions<ManagedIdentityOptions>, ManagedIdentityOptionsValidator>();
         }
 
         /// <summary>
@@ -128,12 +121,18 @@
         /// <param name="services">The service collection.</param>
         private static void RegisterServices(IServiceCollection services)
         {
-            services.AddLogging();
-            services.AddSingleton<GoogleIdTokenProvider>();
+            // Register option validators
+            services.AddSingleton<IValidateOptions<WorkloadIdentityOptions>, WorkloadIdentityOptionsValidator>();
+            services.AddSingleton<IValidateOptions<AzureSqlOptions>, AzureSqlOptionsValidator>();
+            services.AddSingleton<IValidateOptions<BlobStorageOptions>, BlobStorageOptionsValidator>();
+            services.AddSingleton<IValidateOptions<GoogleOptions>, GoogleOptionsValidator>();
+            services.AddSingleton<IValidateOptions<ManagedIdentityOptions>, ManagedIdentityOptionsValidator>();
 
             // Register concrete exchangers for DI
             services.AddSingleton<ManagedIdentityTokenExchanger>();
             services.AddSingleton<GoogleFederatedTokenExchanger>();
+
+            services.AddSingleton<GoogleIdTokenProvider>();
 
             services.AddSingleton<WorkloadIdentityTokenExchangerFactory>(sp =>
                 new WorkloadIdentityTokenExchangerFactory(
@@ -150,7 +149,10 @@
                         },
                     }));
 
+            // Register core services
+            services.AddLogging();
             services.AddMemoryCache();
+
             services.AddHostedService<TokenRefreshService>();
 
             services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
