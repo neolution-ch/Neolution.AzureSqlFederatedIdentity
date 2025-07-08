@@ -1,6 +1,4 @@
-﻿[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Neolution.WorkloadIdentity.UnitTests")]
-
-namespace Neolution.WorkloadIdentity.Internal.Services.Azure
+﻿namespace Neolution.WorkloadIdentity.Internal.Services.Azure
 {
     using System.Threading;
     using System.Threading.Tasks;
