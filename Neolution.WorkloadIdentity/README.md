@@ -41,6 +41,8 @@ Federated identity integration for Azure SQL using Google Cloud IAM Credentials 
    builder.Services.AddWorkloadIdentity(builder.Configuration);
    ```
 
+4. **For detailed setup instructions**, see the [Identity Setup Guide](IDENTITY-SETUP.md) for step-by-step configuration of Azure Managed Identities and Google Cloud Workload Identity Federation.
+
 ## Configuration
 
 This library adopts a **resource-first** model: each built-in token provider (e.g. Azure SQL, Azure Blob Storage) gets its own section under `Neolution.WorkloadIdentity`.  You choose a `Provider` and supply only the settings that apply to that identity flow.
