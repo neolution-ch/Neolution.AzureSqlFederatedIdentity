@@ -1,0 +1,62 @@
+﻿namespace Neolution.WorkloadIdentity.Internal.Services.Azure
+{
+    using System.Threading;
+    using System.Threading.Tasks;
+    using global::Azure.Core;
+    using global::Azure.Identity;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
+    using Neolution.WorkloadIdentity.Options;
+
+    /// <summary>
+    /// Exchanges a managed identity credential for an Azure AD access token for Azure SQL.
+    /// </summary>
+    internal class ManagedIdentityTokenExchanger : IWorkloadIdentityTokenExchanger
+    {
+        /// <summary>
+        /// The logger instance for logging.
+        /// </summary>
+        private readonly ILogger<ManagedIdentityTokenExchanger> logger;
+
+        /// <summary>
+        /// The managed identity options monitor.
+        /// </summary>
+        private readonly IOptionsMonitor<ManagedIdentityOptions> managedIdentityOptionsMonitor;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ManagedIdentityTokenExchanger"/> class.
+        /// </summary>
+        /// <param name="logger">The logger instance for logging.</param>
+        /// <param name="managedIdentityOptionsMonitor">The managed identity options monitor.</param>
+        public ManagedIdentityTokenExchanger(
+            ILogger<ManagedIdentityTokenExchanger> logger,
+            IOptionsMonitor<ManagedIdentityOptions> managedIdentityOptionsMonitor)
+        {
+            this.logger = logger;
+            this.managedIdentityOptionsMonitor = managedIdentityOptionsMonitor;
+        }
+
+        /// <summary>
+        /// Retrieves an Azure AD access token for the specified logical context using the managed identity credential.
+        /// </summary>
+        /// <param name="scope">The logical context for which the access token is requested.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+        /// <returns>An <see cref="AccessToken" /> containing the token and its expiration information.</returns>
+        public async Task<AccessToken> GetTokenAsync(TokenScope scope, CancellationToken cancellationToken)
+        {
+            var options = this.managedIdentityOptionsMonitor.Get(scope.ToString());
+            this.logger.LogTrace("Getting Azure AD access token for {Identifier} using Managed Identity", scope);
+            var requestContext = new TokenRequestContext(new[] { scope.GetIdentifier() });
+
+            // Create a ManagedIdentityCredential with or without client ID
+            var credential = string.IsNullOrWhiteSpace(options.ClientId)
+                ? new ManagedIdentityCredential()
+                : new ManagedIdentityCredential(options.ClientId);
+
+            var token = await credential.GetTokenAsync(requestContext, cancellationToken).ConfigureAwait(false);
+
+            this.logger.LogDebug("Obtained Azure AD access token via Managed Identity, length: {Length}", token.Token.Length);
+            return token;
+        }
+    }
+}
