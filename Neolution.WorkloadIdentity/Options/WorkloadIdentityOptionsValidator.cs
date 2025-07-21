@@ -15,11 +15,6 @@
         /// <returns>A <see cref="ValidateOptionsResult"/> indicating the result of the validation.</returns>
         public ValidateOptionsResult Validate(string? name, WorkloadIdentityOptions options)
         {
-            if (options is null)
-            {
-                return ValidateOptionsResult.Fail("WorkloadIdentityOptions cannot be null.");
-            }
-
             // Validate individual sections
             var azureResult = new AzureSqlOptionsValidator().Validate(name, options.AzureSql);
             var blobResult = new BlobStorageOptionsValidator().Validate(name, options.BlobStorage);
