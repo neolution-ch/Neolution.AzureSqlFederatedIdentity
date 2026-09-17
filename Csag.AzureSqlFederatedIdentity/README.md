@@ -93,6 +93,9 @@ app.Run();
 Two further overloads exist, for a host whose configuration is not registered as `IConfiguration` in the container and for configuring in code. Given an `IServiceCollection services` and an `IConfiguration configuration`:
 
 ```csharp
+using Csag.AzureSqlFederatedIdentity;
+using Csag.AzureSqlFederatedIdentity.Options;
+
 // Binds the "Csag.AzureSqlFederatedIdentity" section of the given configuration.
 services.AddAzureSqlFederatedIdentity(configuration);
 
@@ -177,7 +180,7 @@ Register the factory (`builder.Services.AddScoped<AppDbContextFactory>();`) and 
 - **Connection string.** The access token is the credential, so the connection string must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword: `SqlClient` throws an `InvalidOperationException` when `AccessToken` is combined with conflicting authentication settings. Keep `Encrypt=True` so the token and your data travel over TLS.
 - **Runtime identity.** The Google ID token is requested through Application Default Credentials (ADC). Whatever identity ADC resolves to (the service account attached to the Cloud Run, GKE or Compute Engine resource, or your own account after `gcloud auth application-default login`) must hold `roles/iam.serviceAccountOpenIdTokenCreator` on the configured `ServiceAccountEmail`. The intended deployment is the simplest one: the application runs *as* that service account, with the role granted to the account on itself.
 - **Token handling.** The provider holds the token; do not cache or persist it yourself. `AccessToken` is part of the `SqlClient` connection pool key, so a refreshed token starts a new pool, which is expected.
-- **Background refresh.** When enabled, the hosted service exchanges a token as soon as the host starts and again each time the held token enters the refresh-ahead window. A failed exchange is logged at `Error` and retried, waiting 5 seconds and doubling up to 5 minutes between attempts. When disabled, the first caller to find the token due for refresh performs the exchange while concurrent callers wait for its result. If you register your own `IAzureSqlTokenProvider`, the hosted service leaves it alone.
+- **Background refresh.** When enabled, the hosted service exchanges a token as soon as the host starts and again when the held token enters the refresh-ahead window, or at half the token's remaining lifetime when that is shorter than the window (the wait is kept between 10 seconds and 1 day). A failed exchange is logged at `Error` and retried, waiting 5 seconds and doubling up to 5 minutes between attempts. When disabled, the first caller to find the token due for refresh performs the exchange while concurrent callers wait for its result. If you register your own `IAzureSqlTokenProvider`, the hosted service leaves it alone.
 - **Logging.** All categories start with `Csag.AzureSqlFederatedIdentity`. Exchanges and refreshes log at `Debug`; per-call reuse of the held token logs at `Trace`.
 
 ## Troubleshooting
@@ -185,7 +188,7 @@ Register the factory (`builder.Services.AddScoped<AppDbContextFactory>();`) and 
 | Symptom | Likely cause |
 |---|---|
 | The host fails to start with `OptionsValidationException` | A required key is missing or `RefreshAheadWindow` is not positive; the message names the value. |
-| `RpcException` with status `PermissionDenied` from Google | The runtime identity lacks `roles/iam.serviceAccountOpenIdTokenCreator` on the service account, or the IAM Service Account Credentials API is not enabled in the project. |
+| `RpcException` with status `PermissionDenied` in the log; the caller receives it as the inner exception of an `AuthenticationFailedException` | The runtime identity lacks `roles/iam.serviceAccountOpenIdTokenCreator` on the service account, or the IAM Service Account Credentials API is not enabled in the project. |
 | "Failed to create IAMCredentialsClient" in the log | No Application Default Credentials were found; set the runtime service account, or run `gcloud auth application-default login` on a workstation. |
 | Microsoft Entra ID rejects the assertion because no matching federated identity credential was found | The federated credential's issuer, subject (the service account's unique ID) or audience does not match the ID token. |
 | Azure SQL reports "Login failed for user" | No database user exists for the app registration in the target database, or the server's network rules block the connection. |
