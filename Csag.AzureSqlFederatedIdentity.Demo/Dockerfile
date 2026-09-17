@@ -1,24 +1,26 @@
-# Use official .NET SDK image for build
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# Build context is the repository root:
+#   docker build -f Csag.AzureSqlFederatedIdentity.Demo/Dockerfile -t csag-demo .
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore as distinct layers
-COPY *.csproj ./
-# If you have subfolders, adjust copy commands accordingly:
-# e.g., COPY Models/*.csproj or simply copy entire project
-RUN dotnet restore
+# Project and lock files first, so the restore layer is reused until a dependency changes.
+COPY global.json nuget.config Directory.Build.props Directory.Packages.props ./
+COPY Csag.AzureSqlFederatedIdentity/Csag.AzureSqlFederatedIdentity.csproj Csag.AzureSqlFederatedIdentity/packages.lock.json Csag.AzureSqlFederatedIdentity/
+COPY Csag.AzureSqlFederatedIdentity.Demo/Csag.AzureSqlFederatedIdentity.Demo.csproj Csag.AzureSqlFederatedIdentity.Demo/packages.lock.json Csag.AzureSqlFederatedIdentity.Demo/
+RUN dotnet restore Csag.AzureSqlFederatedIdentity.Demo --locked-mode
 
-# Copy everything else and build
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet publish Csag.AzureSqlFederatedIdentity.Demo -c Release --no-restore -o /app/publish
 
-# Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Ensure ASP.NET listens on port 8080 (Cloud Run default)
-ENV ASPNETCORE_URLS=http://+:8080
+# Cloud Run sends requests to the container on $PORT, which defaults to 8080.
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
 
-COPY --from=build /app/publish ./
+# Non-root user shipped with the aspnet image.
+USER app
 
-ENTRYPOINT ["dotnet", "AspNetEfAzureAdTest.dll"]
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "Csag.AzureSqlFederatedIdentity.Demo.dll"]

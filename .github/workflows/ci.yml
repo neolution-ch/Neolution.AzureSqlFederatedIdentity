@@ -79,3 +79,28 @@ jobs:
           name: nupkgs
           path: ./nupkgs
           retention-days: 7
+
+  docker:
+    name: Docker (Demo image)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Build Demo image
+        run: docker build -f Csag.AzureSqlFederatedIdentity.Demo/Dockerfile -t csag-demo .
+
+      # The library validates its settings at startup, so the container only reaches "/" with placeholder values.
+      - name: Smoke test Demo image
+        run: |
+          docker run -d -p 8080:8080 --name csag-demo \
+            -e Csag.AzureSqlFederatedIdentity__TenantId=placeholder \
+            -e Csag.AzureSqlFederatedIdentity__ClientId=placeholder \
+            -e Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail=placeholder@example.invalid \
+            csag-demo
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:8080/
+          docker stop csag-demo
+
+      - name: Demo container logs
+        if: failure()
+        run: docker logs csag-demo
