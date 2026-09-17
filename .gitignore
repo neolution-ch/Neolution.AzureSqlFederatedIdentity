@@ -404,3 +404,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Local pack output and changesets tooling
+nupkgs/
+node_modules/
