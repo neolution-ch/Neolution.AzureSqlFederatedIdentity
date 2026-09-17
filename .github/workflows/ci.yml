@@ -103,4 +103,4 @@ jobs:
 
       - name: Demo container logs
         if: failure()
-        run: docker logs csag-demo
+        run: docker logs csag-demo || true
