@@ -15,25 +15,26 @@ app.UseStaticFiles();
 
 app.MapGet("/", () => Results.Ok("Cloud Run to Azure SQL via Workload Identity Federation."));
 
-app.MapGet("/test", async ([FromServices] IAppDbContextFactory dbFactory) =>
+app.MapGet("/test", async ([FromServices] IAppDbContextFactory dbFactory, [FromServices] ILogger<Program> logger, CancellationToken cancellationToken) =>
 {
     try
     {
-        await using var context = await dbFactory.CreateDbContextAsync();
+        await using var context = await dbFactory.CreateDbContextAsync(cancellationToken);
 
-        var count = await context.TestTable.CountAsync();
+        var count = await context.TestTable.CountAsync(cancellationToken);
         if (count == 0)
         {
             return Results.NotFound("No rows found in TestTable.");
         }
 
-        var rows = await context.TestTable.OrderBy(e => e.Id).ToListAsync();
+        var rows = await context.TestTable.OrderBy(e => e.Id).ToListAsync(cancellationToken);
         return Results.Ok(new { count, rows, });
     }
     catch (Exception ex)
     {
-        // In production, avoid exposing details; here for debugging:
-        return Results.Problem(detail: ex.Message);
+        // The endpoint is unauthenticated, so token-exchange and SQL failures go to the log, not the response.
+        logger.LogError(ex, "Querying TestTable failed.");
+        return Results.Problem();
     }
 });
 
