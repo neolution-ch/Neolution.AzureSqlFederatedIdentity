@@ -11,8 +11,8 @@ A minimal ASP.NET Core app that runs on Google Cloud Run and reads from Azure SQ
 
 1. The cloud side described in [docs/cloud-identity-setup.md](../docs/cloud-identity-setup.md): a Google service account, an Azure AD app registration with a federated credential for it, and a database user for that app registration.
 2. Google Application Default Credentials (ADC), which the library uses to ask Google for an ID token for the service account:
-   - **On Cloud Run** there is nothing to configure: set the service's runtime service account to the configured service account (it needs `roles/iam.serviceAccountTokenCreator` on itself).
-   - **On a workstation** run `gcloud auth application-default login`. Your Google account needs `roles/iam.serviceAccountTokenCreator` on the service account (granted on the service account, not on the project), and the IAM Service Account Credentials API must be enabled in the project (`gcloud services enable iamcredentials.googleapis.com`).
+   - **On Cloud Run** there is nothing to configure: set the service's runtime service account to the configured service account (it needs `roles/iam.serviceAccountOpenIdTokenCreator` on itself).
+   - **On a workstation** run `gcloud auth application-default login`. Your Google account needs `roles/iam.serviceAccountOpenIdTokenCreator` on the service account (granted on the service account, not on the project), and the IAM Service Account Credentials API must be enabled in the project (`gcloud services enable iamcredentials.googleapis.com`).
 3. The .NET SDK pinned in [global.json](../global.json), and Docker if you want to run the container.
 
 ## Settings
