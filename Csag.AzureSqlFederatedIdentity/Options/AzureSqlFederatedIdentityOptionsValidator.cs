@@ -27,9 +27,19 @@
                 return ValidateOptionsResult.Fail("ClientId must be provided.");
             }
 
-            if (options.Google != null && string.IsNullOrWhiteSpace(options.Google.ServiceAccountEmail))
+            if (options.Google is null)
+            {
+                return ValidateOptionsResult.Fail("Google section must be provided.");
+            }
+
+            if (string.IsNullOrWhiteSpace(options.Google.ServiceAccountEmail))
             {
                 return ValidateOptionsResult.Fail("Google:ServiceAccountEmail must be provided.");
+            }
+
+            if (options.RefreshAheadWindow <= TimeSpan.Zero)
+            {
+                return ValidateOptionsResult.Fail("RefreshAheadWindow must be a positive duration.");
             }
 
             return ValidateOptionsResult.Success;
