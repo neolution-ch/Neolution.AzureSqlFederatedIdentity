@@ -1,16 +1,16 @@
 ﻿namespace Csag.AzureSqlFederatedIdentity
 {
-    using Azure.Core;
     using Csag.AzureSqlFederatedIdentity.Abstractions;
+    using Csag.AzureSqlFederatedIdentity.Internal;
     using Csag.AzureSqlFederatedIdentity.Options;
-    using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
     /// <summary>
-    /// Provides Azure SQL access tokens, with caching and automatic refresh.
+    /// Provides Azure SQL access tokens. The current token is held in memory and reused until it enters the
+    /// configured refresh-ahead window; callers that find no usable token share a single token exchange.
     /// </summary>
-    public class AzureSqlTokenProvider : IAzureSqlTokenProvider
+    public sealed class AzureSqlTokenProvider : IAzureSqlTokenProvider, IAzureSqlTokenRefresher, IDisposable
     {
         /// <summary>
         /// The token exchanger for Azure SQL.
@@ -23,94 +23,152 @@
         private readonly AzureSqlFederatedIdentityOptions options;
 
         /// <summary>
+        /// The clock used to judge how much lifetime the held token has left.
+        /// </summary>
+        private readonly TimeProvider timeProvider;
+
+        /// <summary>
         /// The logger instance for this class.
         /// </summary>
         private readonly ILogger<AzureSqlTokenProvider> logger;
 
         /// <summary>
-        /// The memory cache for storing tokens.
+        /// Serialises token exchanges: the first caller to find no usable token performs the exchange while the
+        /// others wait for it and then reuse its result.
         /// </summary>
-        private readonly IMemoryCache memoryCache;
+        private readonly SemaphoreSlim exchangeLock = new(1, 1);
+
+        /// <summary>
+        /// The token currently held, or <see langword="null"/> before the first successful exchange. A reference
+        /// type so that the lock-free read in <see cref="GetAzureSqlAccessTokenAsync"/> is atomic.
+        /// </summary>
+        private volatile HeldToken? currentToken;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureSqlTokenProvider"/> class.
         /// </summary>
         /// <param name="azureSqlTokenExchanger">The token exchanger for Azure SQL.</param>
         /// <param name="options">The federated identity options.</param>
+        /// <param name="timeProvider">The clock used to judge token lifetime.</param>
         /// <param name="logger">The logger instance.</param>
-        /// <param name="memoryCache">The memory cache instance.</param>
         public AzureSqlTokenProvider(
             IAzureSqlTokenExchanger azureSqlTokenExchanger,
             IOptions<AzureSqlFederatedIdentityOptions> options,
-            ILogger<AzureSqlTokenProvider> logger,
-            IMemoryCache memoryCache)
+            TimeProvider timeProvider,
+            ILogger<AzureSqlTokenProvider> logger)
         {
             ArgumentNullException.ThrowIfNull(options);
 
             this.azureSqlTokenExchanger = azureSqlTokenExchanger;
             this.options = options.Value;
+            this.timeProvider = timeProvider;
             this.logger = logger;
-            this.memoryCache = memoryCache;
         }
 
         /// <summary>
-        /// Gets the cache key for the Azure SQL access token.
-        /// </summary>
-        private string TokenCacheKey => $"{nameof(AzureSqlFederatedIdentity)}_AccessToken_{this.options.ClientId}";
-
-        /// <summary>
-        /// Gets a valid Azure AD access token for Azure SQL, using the cache if possible.
+        /// Gets a valid Azure AD access token for Azure SQL, reusing the held token while it is outside the
+        /// refresh-ahead window.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The Azure AD access token for Azure SQL.</returns>
         public async Task<string> GetAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
         {
-            // Returns a valid Azure AD access token for Azure SQL, using the cache if possible.
-            if (this.memoryCache.TryGetValue<AccessToken>(this.TokenCacheKey, out var cachedToken))
+            var held = this.currentToken;
+            if (held is not null && !this.IsDueForRefresh(held))
             {
-                if (cachedToken.ExpiresOn.UtcDateTime > DateTimeOffset.UtcNow.AddMinutes(5))
+                this.logger.LogTrace("Returning the held Azure AD access token.");
+                return held.Token;
+            }
+
+            var token = await this.ExchangeAsync(held, force: false, cancellationToken).ConfigureAwait(false);
+            return token.Token;
+        }
+
+        /// <inheritdoc />
+        async Task<DateTimeOffset> IAzureSqlTokenRefresher.RefreshAsync(CancellationToken cancellationToken)
+        {
+            var token = await this.ExchangeAsync(this.currentToken, force: true, cancellationToken).ConfigureAwait(false);
+            return token.ExpiresOn;
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            this.exchangeLock.Dispose();
+        }
+
+        /// <summary>
+        /// Exchanges a new token, unless another caller replaced <paramref name="observed"/> with one this caller
+        /// can use while it waited for the lock.
+        /// </summary>
+        /// <param name="observed">The token the caller saw before deciding to exchange, if any.</param>
+        /// <param name="force">Whether to replace a token that is not yet due for refresh.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The token now held.</returns>
+        private async Task<HeldToken> ExchangeAsync(HeldToken? observed, bool force, CancellationToken cancellationToken)
+        {
+            await this.exchangeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var held = this.currentToken;
+                if (held is not null && this.CanReuse(held, observed, force))
                 {
-                    this.logger.LogTrace("Returning cached Azure AD access token from IMemoryCache.");
-                    return cachedToken.Token;
+                    this.logger.LogTrace("Another caller refreshed the Azure AD access token in the meantime; reusing it.");
+                    return held;
                 }
 
-                this.logger.LogTrace("Cached Azure AD access token is close to expiring, fetching a new one.");
-            }
-            else
-            {
-                this.logger.LogTrace("No cached Azure AD access token found in IMemoryCache, fetching a new one.");
-            }
+                this.logger.LogDebug("Exchanging a new Azure AD access token for Azure SQL.");
+                var accessToken = await this.azureSqlTokenExchanger
+                    .ExchangeClientAssertionForAzureTokenAsync(this.options.TenantId, this.options.ClientId, cancellationToken)
+                    .ConfigureAwait(false);
 
-            var accessToken = await this.FetchAzureSqlAccessTokenAsync(cancellationToken).ConfigureAwait(false);
-            this.SetTokenInCache(accessToken);
-            return accessToken.Token;
+                held = new HeldToken(accessToken.Token, accessToken.ExpiresOn);
+                this.currentToken = held;
+                this.logger.LogDebug("Holding a new Azure AD access token that expires at {ExpiresOn}.", held.ExpiresOn);
+                return held;
+            }
+            finally
+            {
+                this.exchangeLock.Release();
+            }
         }
 
         /// <summary>
-        /// Sets the access token in the memory cache.
+        /// Decides whether the token found under the lock can be returned instead of exchanging a new one.
         /// </summary>
-        /// <param name="accessToken">The access token to cache.</param>
-        private void SetTokenInCache(AccessToken accessToken)
+        /// <param name="held">The token currently held.</param>
+        /// <param name="observed">The token the caller saw before deciding to exchange, if any.</param>
+        /// <param name="force">Whether the caller asked for a forced refresh.</param>
+        /// <returns><see langword="true"/> to return <paramref name="held"/>; <see langword="false"/> to exchange.</returns>
+        private bool CanReuse(HeldToken held, HeldToken? observed, bool force)
         {
-            var cacheEntryOptions = new MemoryCacheEntryOptions
+            if (ReferenceEquals(held, observed))
             {
-                // Expire the token in cache 5 minutes before its actual expiry to avoid using a token
-                // that is close to expiring or already expired, which would cause authentication failures.
-                AbsoluteExpiration = accessToken.ExpiresOn.UtcDateTime.AddMinutes(-5),
-            };
+                // Nothing changed while waiting for the lock, so the decision to exchange stands.
+                return false;
+            }
 
-            this.logger.LogTrace("Caching Azure AD access token in IMemoryCache with expiration at {Expiration}.", cacheEntryOptions.AbsoluteExpiration);
-            this.memoryCache.Set(this.TokenCacheKey, accessToken, cacheEntryOptions);
+            // Another caller replaced the token in the meantime. A forced refresh is satisfied by any token that is
+            // not yet due. An ordinary call also accepts a short-lived token that arrived already inside the
+            // refresh-ahead window, as long as it has not expired, rather than exchanging again straight away.
+            return force ? !this.IsDueForRefresh(held) : held.ExpiresOn > this.timeProvider.GetUtcNow();
         }
 
         /// <summary>
-        /// Fetches a new Azure AD access token for Azure SQL from the token exchanger.
+        /// Checks whether the token has entered the refresh-ahead window.
         /// </summary>
-        /// <param name="cancellationToken">A cancellation token.</param>
-        /// <returns>The new Azure AD access token.</returns>
-        private async Task<AccessToken> FetchAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
+        /// <param name="held">The token to check.</param>
+        /// <returns><see langword="true"/> if the token is due for refresh.</returns>
+        private bool IsDueForRefresh(HeldToken held)
         {
-            return await this.azureSqlTokenExchanger.ExchangeClientAssertionForAzureTokenAsync(this.options.TenantId, this.options.ClientId, cancellationToken).ConfigureAwait(false);
+            return held.ExpiresOn - this.timeProvider.GetUtcNow() <= this.options.RefreshAheadWindow;
         }
+
+        /// <summary>
+        /// An access token together with the instant it expires.
+        /// </summary>
+        /// <param name="Token">The access token.</param>
+        /// <param name="ExpiresOn">The instant the token expires.</param>
+        private sealed record HeldToken(string Token, DateTimeOffset ExpiresOn);
     }
 }

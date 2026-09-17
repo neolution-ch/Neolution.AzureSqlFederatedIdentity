@@ -6,6 +6,7 @@
     using Csag.AzureSqlFederatedIdentity.Options;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.DependencyInjection.Extensions;
     using Microsoft.Extensions.Options;
 
     /// <summary>
@@ -14,54 +15,78 @@
     public static class FederatedIdentityServiceCollectionExtensions
     {
         /// <summary>
-        /// Adds Azure SQL federated identity services with default options.
+        /// Adds Azure SQL federated identity services, binding the options from the
+        /// <see cref="AzureSqlFederatedIdentityOptions.ConfigurationSectionName"/> section of the
+        /// <see cref="IConfiguration"/> registered in the container. The options are validated when the host starts.
         /// </summary>
         /// <param name="services">The service collection.</param>
         /// <returns>The service collection for chaining.</returns>
         public static IServiceCollection AddAzureSqlFederatedIdentity(this IServiceCollection services)
         {
+            ArgumentNullException.ThrowIfNull(services);
+
+            services.AddOptions<AzureSqlFederatedIdentityOptions>()
+                .BindConfiguration(AzureSqlFederatedIdentityOptions.ConfigurationSectionName)
+                .ValidateOnStart();
             RegisterFederatedIdentityServices(services);
             return services;
         }
 
         /// <summary>
-        /// Adds Azure SQL federated identity services with custom options configuration.
+        /// Adds Azure SQL federated identity services with the options configured in code. The options are validated
+        /// when the host starts.
         /// </summary>
         /// <param name="services">The service collection.</param>
         /// <param name="configureOptions">The action to configure options.</param>
         /// <returns>The service collection for chaining.</returns>
         public static IServiceCollection AddAzureSqlFederatedIdentity(this IServiceCollection services, Action<AzureSqlFederatedIdentityOptions> configureOptions)
         {
-            services.Configure(configureOptions);
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configureOptions);
+
+            services.AddOptions<AzureSqlFederatedIdentityOptions>()
+                .Configure(configureOptions)
+                .ValidateOnStart();
             RegisterFederatedIdentityServices(services);
             return services;
         }
 
         /// <summary>
-        /// Adds Azure SQL federated identity services and configuration to the DI container.
+        /// Adds Azure SQL federated identity services, binding the options from the
+        /// <see cref="AzureSqlFederatedIdentityOptions.ConfigurationSectionName"/> section of the given configuration.
+        /// Use this when the configuration is not registered as <see cref="IConfiguration"/> in the container. The
+        /// options are validated when the host starts.
         /// </summary>
         /// <param name="services">The service collection.</param>
         /// <param name="configuration">The application configuration.</param>
         /// <returns>The service collection for chaining.</returns>
         public static IServiceCollection AddAzureSqlFederatedIdentity(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<AzureSqlFederatedIdentityOptions>(options => configuration.GetSection("Csag.AzureSqlFederatedIdentity").Bind(options));
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            services.AddOptions<AzureSqlFederatedIdentityOptions>()
+                .Bind(configuration.GetSection(AzureSqlFederatedIdentityOptions.ConfigurationSectionName))
+                .ValidateOnStart();
             RegisterFederatedIdentityServices(services);
             return services;
         }
 
         /// <summary>
-        /// Registers the core Azure SQL federated identity services in the DI container.
+        /// Registers the token pipeline. Every registration is a Try* registration, so a consumer can substitute any
+        /// service by registering its own implementation first, and repeated calls do not duplicate anything.
         /// </summary>
         /// <param name="services">The service collection.</param>
         private static void RegisterFederatedIdentityServices(IServiceCollection services)
         {
-            services.AddMemoryCache();
-            services.AddSingleton<IGoogleIdTokenProvider, GoogleIdTokenProvider>();
-            services.AddSingleton<IAzureSqlTokenExchanger, AzureSqlTokenExchanger>();
-            services.AddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AzureSqlFederatedIdentityOptions>, AzureSqlFederatedIdentityOptionsValidator>());
+            services.TryAddSingleton<IIamCredentialsClientFactory, IamCredentialsClientFactory>();
+            services.TryAddSingleton<IClientAssertionCredentialFactory, ClientAssertionCredentialFactory>();
+            services.TryAddSingleton<IGoogleIdTokenProvider, GoogleIdTokenProvider>();
+            services.TryAddSingleton<IAzureSqlTokenExchanger, AzureSqlTokenExchanger>();
+            services.TryAddSingleton<IAzureSqlTokenProvider, AzureSqlTokenProvider>();
             services.AddHostedService<AzureSqlTokenRefreshService>();
-            services.AddSingleton<IValidateOptions<AzureSqlFederatedIdentityOptions>, AzureSqlFederatedIdentityOptionsValidator>();
         }
     }
 }
