@@ -22,6 +22,16 @@ This repository provides federated identity integration for Azure SQL using Goog
 
 2. For detailed cloud and identity setup instructions (Azure AD, Azure SQL, GCP, Cloud Run), see [docs/cloud-identity-setup.md](./docs/cloud-identity-setup.md).
 
+## Release process
+
+This repository follows the [neolution-ch release playbook](https://github.com/neolution-ch/release-playbook) (Changesets, NuGet variant):
+
+1. Every PR that changes the library needs a changeset: run `npx changeset`, choose the bump type and describe the change. CI blocks PRs without one (`npx changeset --empty` for changes that do not affect the package).
+2. On merge to `main`, the Release workflow maintains a **"chore: version packages"** PR that accumulates pending changesets; `scripts/sync-versions.mjs` keeps the `.csproj` version in step.
+3. Merging that PR creates the git tag and GitHub Release; the **NuGet Publish** workflow then packs and pushes the package to nuget.org.
+
+The package is on a `0.x` version: breaking changes are declared as **minor** changesets, fixes as **patch**. Dependabot PRs get their changesets generated automatically.
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./Csag.AzureSqlFederatedIdentity/LICENSE) file for details.

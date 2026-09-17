@@ -1,0 +1,60 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # wait for a month before updating to minimize the risk of supply chain attacks
+    cooldown:
+      default-days: 30
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+      # groups default to `applies-to: version-updates`, so security PRs need their own entry.
+      # note: cooldown does not apply to security updates, they still land immediately.
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # wait for 14 days before updating to minimize the risk of supply chain attacks
+    cooldown:
+      default-days: 14
+    ignore:
+      # major versions of the framework packages follow the .NET version the library targets
+      - dependency-name: "Microsoft.Extensions*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      nuget-ecosystem:
+        patterns:
+          - "*"
+      nuget-ecosystem-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # npm dependencies: the changesets release tooling at the repo root.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # wait for 14 days before updating to minimize the risk of supply chain attacks
+    cooldown:
+      default-days: 14
+    groups:
+      npm-ecosystem:
+        patterns:
+          - "*"
+      npm-ecosystem-security:
+        applies-to: security-updates
+        patterns:
+          - "*"

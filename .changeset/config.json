@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "neolution-ch/Neolution.AzureSqlFederatedIdentity" }
+  ],
+  "commit": false,
+  "fixed": [["@neolution-ch/csag-azure-sql-federated-identity"]],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [],
+  "privatePackages": { "version": true, "tag": true }
+}
