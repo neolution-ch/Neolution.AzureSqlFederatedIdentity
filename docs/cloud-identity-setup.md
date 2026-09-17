@@ -7,7 +7,7 @@ This guide explains how to register your application in Microsoft Entra (Azure A
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Navigate to **IAM & Admin** > **Service Accounts**.
 3. Create a new Service Account or select an existing one.
-4. Note the **Email** of the service account; this will be used in your application's configuration (e.g., `ServiceAccountEmail` setting for the `Neolution.AzureSqlFederatedIdentity` library).
+4. Note the **Email** of the service account; this will be used in your application's configuration (e.g., `ServiceAccountEmail` setting for the `Csag.AzureSqlFederatedIdentity` library).
 5. Find the **Unique ID** of the service account. You can find this by:
    * Clicking on the service account in the list.
    * It's often displayed on the details page, or you can get it using the gcloud CLI: `gcloud iam service-accounts describe <service-account-email> --format='value(uniqueId)'`.
@@ -50,7 +50,7 @@ This guide explains how to register your application in Microsoft Entra (Azure A
 
 1. Deploy your application to Cloud Run.
 2. In the Cloud Run service settings (under the "Security" tab or similar when revising a deployment), ensure the **Service account** is set to the Google Cloud Service Account you configured in Section 1.
-   * The application code (like the `Neolution.AzureSqlFederatedIdentity` library) will use this runtime service account identity via Application Default Credentials to request a Google ID token.
+   * The application code (like the `Csag.AzureSqlFederatedIdentity` library) will use this runtime service account identity via Application Default Credentials to request a Google ID token.
 
 3. Configure your application's settings (e.g., via environment variables in Cloud Run) with:
    * Azure AD **Tenant ID**.
