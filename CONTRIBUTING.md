@@ -29,7 +29,7 @@ The analyzers enforce most of these; the rest come from the existing code.
 - `using` directives inside the namespace, sorted alphabetically with `System` namespaces first.
 - Nullable reference types are enabled; `ConfigureAwait(false)` on every `await` in the library.
 - Comments explain the non-obvious *why* of the code as it stands; they do not narrate edits or previous states.
-- Tests use xunit, Shouldly and AutoFixture with NSubstitute, follow the `Given_<state>_When_<action>_Then_<outcome>` naming with Arrange/Act/Assert sections, and live in `Csag.AzureSqlFederatedIdentity.UnitTests`. Read an existing test class before adding one.
+- Tests use xunit, Shouldly and NSubstitute, follow the `Given_<state>_When_<action>_Then_<outcome>` naming with Arrange/Act/Assert sections, and live in `Csag.AzureSqlFederatedIdentity.UnitTests`. Read an existing test class before adding one.
 
 ## Dependencies
 
