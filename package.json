@@ -1,0 +1,16 @@
+{
+  "name": "csag-azure-sql-federated-identity",
+  "private": true,
+  "workspaces": [
+    "Csag.AzureSqlFederatedIdentity"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version-packages": "node scripts/sync-versions.mjs",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3"
+  }
+}
