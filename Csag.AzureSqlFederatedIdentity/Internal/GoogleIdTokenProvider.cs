@@ -1,6 +1,5 @@
 ﻿namespace Csag.AzureSqlFederatedIdentity.Internal
 {
-    using System.IdentityModel.Tokens.Jwt;
     using Csag.AzureSqlFederatedIdentity.Abstractions;
     using Csag.AzureSqlFederatedIdentity.Options;
     using Google.Cloud.Iam.Credentials.V1;
@@ -87,24 +86,6 @@
             if (string.IsNullOrWhiteSpace(idToken))
             {
                 throw new InvalidOperationException($"ID token was not returned for service account {serviceAccountEmail}");
-            }
-
-            try
-            {
-                var handler = new JwtSecurityTokenHandler();
-                if (handler.CanReadToken(idToken))
-                {
-                    var token = handler.ReadJwtToken(idToken);
-                    this.logger.LogDebug("JWT claims: iss={iss}, aud={aud}, sub={sub}, exp={exp}", token.Issuer, string.Join(",", token.Audiences), token.Subject, token.ValidTo);
-                }
-                else
-                {
-                    this.logger.LogWarning("Cannot read JWT format.");
-                }
-            }
-            catch (Exception ex)
-            {
-                this.logger.LogWarning(ex, "Failed to decode JWT for inspection.");
             }
 
             return idToken;

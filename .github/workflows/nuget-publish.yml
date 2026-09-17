@@ -23,6 +23,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
+          # global.json pins the SDK; 8.x supplies the runtime the net8.0 test leg needs.
+          global-json-file: global.json
           dotnet-version: 8.x
 
       - name: Extract version from tag
@@ -38,7 +40,7 @@ jobs:
           find . -name package.json -not -path "./node_modules/*" -delete
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --locked-mode
 
       - name: Build
         run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.version }}
