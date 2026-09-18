@@ -33,8 +33,10 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # The Version Packages PR consumes the changesets it releases, so the check cannot pass on it. A branch name
+      # alone is no proof (anyone can push a changeset-release/* branch), so the PR must also come from the bot.
       - name: Check for changesets
-        if: github.head_ref != 'changeset-release/main' && !startsWith(github.head_ref, 'changeset-release/release/')
+        if: ${{ !(startsWith(github.head_ref, 'changeset-release/') && github.event.pull_request.user.login == 'csag-changesets-bot[bot]') }}
         run: npx changeset status --since=origin/${{ github.base_ref }}
 
   build:
