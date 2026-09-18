@@ -73,8 +73,10 @@
         }
 
         /// <summary>
-        /// Registers the token pipeline. Every registration is a Try* registration, so a consumer can substitute any
-        /// service by registering its own implementation first, and repeated calls do not duplicate anything.
+        /// Registers the token pipeline. Each service is a Try* registration, so a consumer can substitute it by
+        /// registering its own implementation first. The hosted service is the exception: it is added with
+        /// TryAddEnumerable, which prevents duplicates but not substitution, and is turned off through
+        /// <see cref="AzureSqlFederatedIdentityOptions.EnableBackgroundRefresh"/>. Repeated calls do not duplicate anything.
         /// </summary>
         /// <param name="services">The service collection.</param>
         private static void RegisterFederatedIdentityServices(IServiceCollection services)
