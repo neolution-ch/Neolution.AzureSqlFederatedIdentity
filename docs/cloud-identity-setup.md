@@ -64,7 +64,7 @@ az webapp identity assign --resource-group <resource-group> --name <app-name> --
 
 ### A.3 Local development
 
-A workstation has no managed identity endpoint, so `"Provider": "ManagedIdentity"` only works on Azure. To run the same code locally, either configure the resource with the `Google` provider and Application Default Credentials (section B), or register your own `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider` before calling `AddWorkloadIdentity` (every registration is a `TryAdd`, so yours wins), for example one built on `Azure.Identity`'s `AzureCliCredential`.
+A workstation has no managed identity endpoint, so `"Provider": "ManagedIdentity"` only works on Azure. To run the same code locally, either configure the resource with the `Google` provider and Application Default Credentials (section B), or register your own `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider` before calling `AddWorkloadIdentity` (every registration is a `TryAdd`, so yours wins), for example one built on `Azure.Identity`'s `AzureCliCredential`. `AddWorkloadIdentity` still validates the options, so the resource section has to be present and complete even though your provider ignores it; to avoid configuring it, register your provider and do not call `AddWorkloadIdentity` at all.
 
 ## B. Google Cloud to Azure federation
 
@@ -352,7 +352,7 @@ gcloud run deploy <service> \
 
 To change only the identity of an existing service, use `gcloud run services update <service> --service-account <name>@<project-id>.iam.gserviceaccount.com`. In the console, the runtime service account is under the service's **Security** tab and the variables under **Variables & Secrets**.
 
-At startup the application validates its configuration. On the first access to a resource (or right away, with the background refresh on) it requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and uses the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.WorkloadIdentity/README.md) maps the usual messages to their cause.
+At startup the application validates its configuration. The first token request for each resource happens right after startup with background refresh on (the default), otherwise on the resource's first use. What that request does depends on the resource's provider: with `Google`, the application requests an ID token for the configured service account through ADC (as the runtime service account) and exchanges it at Microsoft Entra ID; with `ManagedIdentity`, it obtains the access token from the host's managed identity endpoint and no Google configuration is involved. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.WorkloadIdentity/README.md) maps the usual messages to their cause.
 
 ## Security best practice: disable SQL authentication
 
