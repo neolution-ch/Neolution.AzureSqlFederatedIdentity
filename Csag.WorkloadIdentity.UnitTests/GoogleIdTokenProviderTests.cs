@@ -1,10 +1,8 @@
 ﻿namespace Csag.WorkloadIdentity.UnitTests
 {
     using Csag.WorkloadIdentity.Internal;
-    using Csag.WorkloadIdentity.Options;
     using Google.Cloud.Iam.Credentials.V1;
     using Microsoft.Extensions.Logging.Abstractions;
-    using Microsoft.Extensions.Options;
     using NSubstitute;
     using Shouldly;
 
@@ -14,7 +12,7 @@
     public class GoogleIdTokenProviderTests
     {
         /// <summary>
-        /// The service account the provider under test impersonates.
+        /// The service account the tests mint tokens for.
         /// </summary>
         private const string ServiceAccountEmail = "sa@example.iam.gserviceaccount.com";
 
@@ -44,11 +42,11 @@
         public GoogleIdTokenProviderTests()
         {
             this.clientFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(this.client);
-            this.provider = new GoogleIdTokenProvider(CreateOptions(), this.clientFactory, NullLogger<GoogleIdTokenProvider>.Instance);
+            this.provider = new GoogleIdTokenProvider(this.clientFactory, NullLogger<GoogleIdTokenProvider>.Instance);
         }
 
         /// <summary>
-        /// Verifies that the provider requests a token for the configured service account with the Azure AD audience.
+        /// Verifies that the provider requests a token for the given service account with the Azure AD audience.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
@@ -58,7 +56,7 @@
             this.SetupGeneratedToken(IdToken);
 
             // Act
-            var result = await this.provider.GetIdTokenAsync(CancellationToken.None);
+            var result = await this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None);
 
             // Assert
             result.ShouldBe(IdToken);
@@ -71,18 +69,18 @@
         }
 
         /// <summary>
-        /// Verifies that repeated calls reuse one client.
+        /// Verifies that repeated calls, even for different service accounts, reuse one client.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
-        public async Task Given_TwoCalls_When_GetIdTokenAsync_Then_CreatesClientOnce()
+        public async Task Given_TwoCallsForDifferentServiceAccounts_When_GetIdTokenAsync_Then_CreatesClientOnce()
         {
             // Arrange
             this.SetupGeneratedToken(IdToken);
 
             // Act
-            await this.provider.GetIdTokenAsync(CancellationToken.None);
-            await this.provider.GetIdTokenAsync(CancellationToken.None);
+            await this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None);
+            await this.provider.GetIdTokenAsync("other@example.iam.gserviceaccount.com", CancellationToken.None);
 
             // Assert
             await this.clientFactory.Received(1).CreateAsync(Arg.Any<CancellationToken>());
@@ -103,8 +101,8 @@
             this.SetupGeneratedToken(IdToken);
 
             // Act
-            var failure = await Should.ThrowAsync<InvalidOperationException>(() => this.provider.GetIdTokenAsync(CancellationToken.None));
-            var result = await this.provider.GetIdTokenAsync(CancellationToken.None);
+            var failure = await Should.ThrowAsync<InvalidOperationException>(() => this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None));
+            var result = await this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None);
 
             // Assert
             failure.Message.ShouldBe("no application default credentials");
@@ -172,38 +170,29 @@
             this.SetupGeneratedToken(string.Empty);
 
             // Act
-            var exception = await Should.ThrowAsync<InvalidOperationException>(() => this.provider.GetIdTokenAsync(CancellationToken.None));
+            var exception = await Should.ThrowAsync<InvalidOperationException>(() => this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None));
 
             // Assert
             exception.Message.ShouldContain(ServiceAccountEmail);
         }
 
         /// <summary>
-        /// Verifies that the provider cannot be constructed without the Google options.
+        /// Verifies that a blank service account email is rejected before any client is created.
         /// </summary>
-        [Fact]
-        public void Given_MissingGoogleOptions_When_Constructed_Then_ThrowsArgumentNullException()
+        /// <param name="serviceAccountEmail">The blank service account email.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task Given_BlankServiceAccountEmail_When_GetIdTokenAsync_Then_ThrowsArgumentException(string? serviceAccountEmail)
         {
-            // Arrange
-            var options = Options.Create(new AzureSqlFederatedIdentityOptions());
-
             // Act
-            var exception = Should.Throw<ArgumentNullException>(() => new GoogleIdTokenProvider(options, this.clientFactory, NullLogger<GoogleIdTokenProvider>.Instance));
+            var exception = await Should.ThrowAsync<ArgumentException>(() => this.provider.GetIdTokenAsync(serviceAccountEmail!, CancellationToken.None));
 
             // Assert
-            exception.ParamName.ShouldNotBeNull().ShouldContain(nameof(AzureSqlFederatedIdentityOptions.Google));
-        }
-
-        /// <summary>
-        /// Creates options naming the test service account.
-        /// </summary>
-        /// <returns>The options.</returns>
-        private static IOptions<AzureSqlFederatedIdentityOptions> CreateOptions()
-        {
-            return Options.Create(new AzureSqlFederatedIdentityOptions
-            {
-                Google = new GoogleOptions { ServiceAccountEmail = ServiceAccountEmail },
-            });
+            exception.ParamName.ShouldBe("serviceAccountEmail");
+            await this.clientFactory.DidNotReceiveWithAnyArgs().CreateAsync(CancellationToken.None);
         }
 
         /// <summary>

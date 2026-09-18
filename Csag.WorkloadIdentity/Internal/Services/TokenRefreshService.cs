@@ -2,15 +2,17 @@
 {
     using Csag.WorkloadIdentity.Abstractions;
     using Csag.WorkloadIdentity.Options;
+    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
     /// <summary>
-    /// Background service that keeps the Azure SQL access token refreshed ahead of its expiry, so that callers are
-    /// served from the held token instead of waiting for a token exchange.
+    /// Background service that keeps the access token of every configured resource refreshed ahead of its expiry, so
+    /// that callers are served from the held token instead of waiting for a token request. Each resource is
+    /// refreshed by its own loop, so a slow or failing resource does not delay the others.
     /// </summary>
-    internal class AzureSqlTokenRefreshService : BackgroundService
+    internal sealed class TokenRefreshService : BackgroundService
     {
         /// <summary>
         /// The shortest wait between two refreshes, so that a token which arrives already inside its refresh-ahead
@@ -35,14 +37,14 @@
         private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// Provides Azure SQL access tokens.
+        /// Resolves the token provider of each configured resource once the host starts.
         /// </summary>
-        private readonly IAzureSqlTokenProvider tokenProvider;
+        private readonly IServiceProvider serviceProvider;
 
         /// <summary>
-        /// The options for federated identity configuration.
+        /// The options naming the configured resources.
         /// </summary>
-        private readonly AzureSqlFederatedIdentityOptions options;
+        private readonly WorkloadIdentityOptions options;
 
         /// <summary>
         /// The clock that schedules the refreshes.
@@ -52,24 +54,24 @@
         /// <summary>
         /// The logger instance for this service.
         /// </summary>
-        private readonly ILogger<AzureSqlTokenRefreshService> logger;
+        private readonly ILogger<TokenRefreshService> logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureSqlTokenRefreshService"/> class.
+        /// Initializes a new instance of the <see cref="TokenRefreshService"/> class.
         /// </summary>
-        /// <param name="tokenProvider">The Azure SQL token provider.</param>
-        /// <param name="options">The federated identity options.</param>
+        /// <param name="serviceProvider">Resolves the token provider of each configured resource.</param>
+        /// <param name="options">The workload identity options.</param>
         /// <param name="timeProvider">The clock that schedules the refreshes.</param>
         /// <param name="logger">The logger instance.</param>
-        public AzureSqlTokenRefreshService(
-            IAzureSqlTokenProvider tokenProvider,
-            IOptions<AzureSqlFederatedIdentityOptions> options,
+        public TokenRefreshService(
+            IServiceProvider serviceProvider,
+            IOptions<WorkloadIdentityOptions> options,
             TimeProvider timeProvider,
-            ILogger<AzureSqlTokenRefreshService> logger)
+            ILogger<TokenRefreshService> logger)
         {
             ArgumentNullException.ThrowIfNull(options);
 
-            this.tokenProvider = tokenProvider;
+            this.serviceProvider = serviceProvider;
             this.options = options.Value;
             this.timeProvider = timeProvider;
             this.logger = logger;
@@ -80,44 +82,29 @@
         {
             if (!this.options.EnableBackgroundRefresh)
             {
-                this.logger.LogDebug("Background refresh of the Azure SQL access token is disabled.");
+                this.logger.LogDebug("Background refresh of access tokens is disabled.");
                 return;
             }
 
-            if (this.tokenProvider is not IAzureSqlTokenRefresher refresher)
+            var loops = new List<Task>();
+            foreach (var scope in Enum.GetValues<TokenScope>())
             {
-                this.logger.LogInformation("The registered token provider {TokenProviderType} cannot be refreshed on demand; the Azure SQL access token will not be refreshed in the background.", this.tokenProvider.GetType());
-                return;
+                if (this.options.GetResource(scope) is null)
+                {
+                    continue;
+                }
+
+                var tokenProvider = this.ResolveTokenProvider(scope);
+                if (tokenProvider is not ITokenRefresher refresher)
+                {
+                    this.logger.LogInformation("The registered token provider {TokenProviderType} for {Scope} cannot be refreshed on demand; its access token will not be refreshed in the background.", tokenProvider.GetType(), scope);
+                    continue;
+                }
+
+                loops.Add(this.RefreshLoopAsync(scope, refresher, stoppingToken));
             }
 
-            this.logger.LogDebug("Background refresh of the Azure SQL access token started; refreshing {RefreshAheadWindow} ahead of expiry.", this.options.RefreshAheadWindow);
-
-            var consecutiveFailures = 0;
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                TimeSpan delay;
-                try
-                {
-                    var expiresOn = await refresher.RefreshAsync(stoppingToken).ConfigureAwait(false);
-                    consecutiveFailures = 0;
-                    delay = this.GetDelayUntilRefresh(expiresOn);
-                    this.logger.LogDebug("Azure SQL access token refreshed; it expires at {ExpiresOn} and is refreshed again in {Delay}.", expiresOn, delay);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    consecutiveFailures++;
-                    delay = GetRetryDelay(consecutiveFailures);
-                    this.logger.LogError(ex, "Refreshing the Azure SQL access token failed ({ConsecutiveFailures} consecutive failures); retrying in {Delay}.", consecutiveFailures, delay);
-                }
-
-                await this.WaitAsync(delay, stoppingToken).ConfigureAwait(false);
-            }
-
-            this.logger.LogDebug("Background refresh of the Azure SQL access token is stopping.");
+            await Task.WhenAll(loops).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -134,6 +121,61 @@
             }
 
             return delay < MaximumRetryDelay ? delay : MaximumRetryDelay;
+        }
+
+        /// <summary>
+        /// Resolves the registered token provider of the resource.
+        /// </summary>
+        /// <param name="scope">The resource.</param>
+        /// <returns>The token provider.</returns>
+        private IAccessTokenProvider ResolveTokenProvider(TokenScope scope)
+        {
+            return scope switch
+            {
+                TokenScope.AzureSql => this.serviceProvider.GetRequiredService<IAzureSqlTokenProvider>(),
+                TokenScope.BlobStorage => this.serviceProvider.GetRequiredService<IBlobStorageTokenProvider>(),
+                _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown token scope."),
+            };
+        }
+
+        /// <summary>
+        /// Refreshes the token of one resource ahead of its expiry until the service stops, retrying failed refreshes
+        /// with exponential backoff.
+        /// </summary>
+        /// <param name="scope">The resource.</param>
+        /// <param name="refresher">Refreshes the resource's token.</param>
+        /// <param name="stoppingToken">The token that signals the service is stopping.</param>
+        /// <returns>A task that completes once the service is stopping.</returns>
+        private async Task RefreshLoopAsync(TokenScope scope, ITokenRefresher refresher, CancellationToken stoppingToken)
+        {
+            this.logger.LogDebug("Background refresh of the {Scope} access token started; refreshing {RefreshAheadWindow} ahead of expiry.", scope, this.options.RefreshAheadWindow);
+
+            var consecutiveFailures = 0;
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                TimeSpan delay;
+                try
+                {
+                    var expiresOn = await refresher.RefreshAsync(stoppingToken).ConfigureAwait(false);
+                    consecutiveFailures = 0;
+                    delay = this.GetDelayUntilRefresh(expiresOn);
+                    this.logger.LogDebug("{Scope} access token refreshed; it expires at {ExpiresOn} and is refreshed again in {Delay}.", scope, expiresOn, delay);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    consecutiveFailures++;
+                    delay = GetRetryDelay(consecutiveFailures);
+                    this.logger.LogError(ex, "Refreshing the {Scope} access token failed ({ConsecutiveFailures} consecutive failures); retrying in {Delay}.", scope, consecutiveFailures, delay);
+                }
+
+                await this.WaitAsync(delay, stoppingToken).ConfigureAwait(false);
+            }
+
+            this.logger.LogDebug("Background refresh of the {Scope} access token is stopping.", scope);
         }
 
         /// <summary>
