@@ -47,7 +47,7 @@ jobs:
           # dependency graph (packages.lock.json) change. Any Dependabot update
           # that touches none of these — root npm dev-deps, GitHub Actions, other
           # tooling — ships no code and gets an empty changeset instead.
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'Csag.AzureSqlFederatedIdentity/*.csproj' 'Csag.AzureSqlFederatedIdentity/packages.lock.json' 'Directory.Packages.props')
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'Csag.WorkloadIdentity/*.csproj' 'Csag.WorkloadIdentity/packages.lock.json' 'Directory.Packages.props')
           if [ -n "$CHANGED" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "Package-affecting files changed:"

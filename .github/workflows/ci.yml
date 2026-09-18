@@ -71,7 +71,7 @@ jobs:
           retention-days: 7
 
       - name: Pack (smoke test)
-        run: dotnet pack Csag.AzureSqlFederatedIdentity --configuration Release --no-build -o ./nupkgs
+        run: dotnet pack Csag.WorkloadIdentity --configuration Release --no-build -o ./nupkgs
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
@@ -88,15 +88,15 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Build Demo image
-        run: docker build -f Csag.AzureSqlFederatedIdentity.Demo/Dockerfile -t csag-demo .
+        run: docker build -f Csag.WorkloadIdentity.Demo/Dockerfile -t csag-demo .
 
       # The library validates its settings at startup, so the container only reaches "/" with placeholder values.
       - name: Smoke test Demo image
         run: |
           docker run -d -p 8080:8080 --name csag-demo \
-            -e Csag.AzureSqlFederatedIdentity__TenantId=placeholder \
-            -e Csag.AzureSqlFederatedIdentity__ClientId=placeholder \
-            -e Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail=placeholder@example.invalid \
+            -e Csag.WorkloadIdentity__TenantId=placeholder \
+            -e Csag.WorkloadIdentity__ClientId=placeholder \
+            -e Csag.WorkloadIdentity__Google__ServiceAccountEmail=placeholder@example.invalid \
             csag-demo
           curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:8080/
           test "$(docker exec csag-demo id -u)" != "0"
