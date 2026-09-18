@@ -73,8 +73,10 @@
         }
 
         /// <summary>
-        /// Registers the token pipeline. Every registration is a Try* registration, so a consumer can substitute any
-        /// service by registering its own implementation first, and repeated calls do not duplicate anything. Both
+        /// Registers the token pipeline. Each service is a Try* registration, so a consumer can substitute it by
+        /// registering its own implementation first. The hosted service is the exception: it is added with
+        /// TryAddEnumerable, which prevents duplicates but not substitution, and is turned off through
+        /// <see cref="WorkloadIdentityOptions.EnableBackgroundRefresh"/>. Repeated calls do not duplicate anything. Both
         /// resource providers are always registered; resolving the provider of a resource whose section is not
         /// configured throws an <see cref="InvalidOperationException"/> that names the missing section.
         /// </summary>
