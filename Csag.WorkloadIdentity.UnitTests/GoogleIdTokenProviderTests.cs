@@ -147,8 +147,8 @@
             using var firstCaller = new CancellationTokenSource();
 
             // Act
-            var first = this.provider.GetIdTokenAsync(firstCaller.Token);
-            var second = this.provider.GetIdTokenAsync(CancellationToken.None);
+            var first = this.provider.GetIdTokenAsync(ServiceAccountEmail, firstCaller.Token);
+            var second = this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None);
             await firstCaller.CancelAsync();
             await Should.ThrowAsync<TaskCanceledException>(() => first);
             creation.SetResult(this.client);
