@@ -118,6 +118,8 @@ In the Azure portal open the logical SQL server and, under **Settings** > **Micr
 
 In the target database (not in `master`), create a contained user for the app registration. The user represents the app registration; the Google service account never appears in Azure SQL:
 
+Creating a user for a service principal, which is what an app registration or a managed identity is, needs one more thing than creating one for a person: Azure SQL cannot look the principal up with the connected admin's permissions, so the SQL engine uses the *server identity*, the managed identity assigned to the logical server, to query Microsoft Graph. Assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement below fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
+
 ```sql
 CREATE USER [<app-registration-display-name>] FROM EXTERNAL PROVIDER;
 ```
