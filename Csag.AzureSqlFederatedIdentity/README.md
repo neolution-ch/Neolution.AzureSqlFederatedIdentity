@@ -20,7 +20,7 @@ How it works:
 - Holds the current access token in memory and hands it out until it enters the configured refresh-ahead window. Callers that find no usable token share a single exchange instead of each running their own.
 - Background refresh (on by default): a hosted service exchanges a fresh token whenever the held one enters the refresh-ahead window, so requests are served from a valid token without waiting for an exchange. Failed exchanges are retried with exponential backoff.
 - Options are validated when the host starts, so a missing or invalid value fails fast with a message that names it.
-- The token pipeline (`IAzureSqlTokenProvider`, the exchanger, the Google ID token provider and their factories) is registered with `TryAdd`, so you can replace any of them by registering your own implementation first. The background refresh hosted service is always added; turn it off with `EnableBackgroundRefresh` instead.
+- The public services, `IAzureSqlTokenProvider`, `IAzureSqlTokenExchanger` and `IGoogleIdTokenProvider`, are registered with `TryAdd`, so you can replace any of them by registering your own implementation first. The background refresh hosted service is always added; turn it off with `EnableBackgroundRefresh` instead.
 - Targets `net8.0` and `net10.0`.
 
 ## Prerequisites
