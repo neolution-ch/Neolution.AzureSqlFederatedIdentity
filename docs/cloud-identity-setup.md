@@ -196,7 +196,7 @@ gcloud run deploy <service> \
 
 To change only the identity of an existing service, use `gcloud run services update <service> --service-account <name>@<project-id>.iam.gserviceaccount.com`. In the console, the runtime service account is under the service's **Security** tab and the variables under **Variables & Secrets**.
 
-At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. On the first database access it requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.AzureSqlFederatedIdentity/README.md) maps the usual messages to their cause.
+At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.AzureSqlFederatedIdentity/README.md) maps the usual messages to their cause.
 
 ## References
 

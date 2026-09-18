@@ -20,7 +20,7 @@ How it works:
 - Holds the current access token in memory and hands it out until it enters the configured refresh-ahead window. Callers that find no usable token share a single exchange instead of each running their own.
 - Background refresh (on by default): a hosted service exchanges a fresh token whenever the held one enters the refresh-ahead window, so requests are served from a valid token without waiting for an exchange. Failed exchanges are retried with exponential backoff.
 - Options are validated when the host starts, so a missing or invalid value fails fast with a message that names it.
-- Every service is registered with `TryAdd`, so you can replace any part of the pipeline, including `IAzureSqlTokenProvider`, by registering your own implementation first.
+- The token pipeline (`IAzureSqlTokenProvider`, the exchanger, the Google ID token provider and their factories) is registered with `TryAdd`, so you can replace any of them by registering your own implementation first. The background refresh hosted service is always added; turn it off with `EnableBackgroundRefresh` instead.
 - Targets `net8.0` and `net10.0`.
 
 ## Prerequisites
@@ -114,7 +114,7 @@ services.AddAzureSqlFederatedIdentity(options =>
 
 ### 4. Use the token
 
-Resolve `IAzureSqlTokenProvider` (namespace `Csag.AzureSqlFederatedIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection: while the held token is valid the call returns it without any network round trip.
+Resolve `IAzureSqlTokenProvider` (namespace `Csag.AzureSqlFederatedIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection: until the held token enters the refresh-ahead window the call returns it without any network round trip; inside the window (reachable only when background refresh is off or has been failing) the first caller exchanges a new token and concurrent callers wait for that one exchange.
 
 ```csharp
 using Csag.AzureSqlFederatedIdentity.Abstractions;
