@@ -1,6 +1,6 @@
 # Security policy
 
-Csag.AzureSqlFederatedIdentity handles credentials: it obtains Google ID tokens and Microsoft Entra ID access tokens and keeps the current access token in memory. We take reports about it seriously.
+Csag.WorkloadIdentity handles credentials: it obtains Google ID tokens and Microsoft Entra ID access tokens and keeps the current access token in memory. We take reports about it seriously.
 
 ## Supported versions
 
@@ -27,6 +27,6 @@ We acknowledge every report, keep you informed while we investigate, and coordin
 
 ## Scope
 
-- In scope: the `Csag.AzureSqlFederatedIdentity` library.
+- In scope: the `Csag.WorkloadIdentity` library.
 - The Demo project is a sample and is not meant for production use; reports about it are still welcome if they point to a problem in the library or its documentation.
 - Vulnerabilities in dependencies such as `Azure.Identity` or the Google Cloud client libraries should be reported to their maintainers; let us know as well if the library needs to update in response.

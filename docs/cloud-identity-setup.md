@@ -1,6 +1,6 @@
 # Cloud and identity setup
 
-This guide sets up everything outside your code so that an application on Google Cloud can connect to Azure SQL through `Csag.AzureSqlFederatedIdentity`: the Google Cloud service account and its permissions, the app registration and federated credential in Microsoft Entra ID (formerly Azure Active Directory), the database user in Azure SQL, the application's configuration and the Cloud Run deployment. For the code that uses the token, see the [package README](../Csag.AzureSqlFederatedIdentity/README.md).
+This guide sets up everything outside your code so that an application on Google Cloud can connect to Azure SQL through `Csag.WorkloadIdentity`: the Google Cloud service account and its permissions, the app registration and federated credential in Microsoft Entra ID (formerly Azure Active Directory), the database user in Azure SQL, the application's configuration and the Cloud Run deployment. For the code that uses the token, see the [package README](../Csag.WorkloadIdentity/README.md).
 
 ## How the pieces fit
 
@@ -146,21 +146,21 @@ The server's [network access controls](https://learn.microsoft.com/en-us/azure/a
 
 ## 4. Configure the application
 
-The library binds its options from the `Csag.AzureSqlFederatedIdentity` configuration section. These are the exact keys, with the environment variable form that .NET maps to the same keys (`__` stands for the `:` separator; the `.` in the section name is part of the variable name):
+The library binds its options from the `Csag.WorkloadIdentity` configuration section. These are the exact keys, with the environment variable form that .NET maps to the same keys (`__` stands for the `:` separator; the `.` in the section name is part of the variable name):
 
 | Configuration key | Environment variable | Value |
 |---|---|---|
-| `Csag.AzureSqlFederatedIdentity:TenantId` | `Csag.AzureSqlFederatedIdentity__TenantId` | Directory (tenant) ID (step 2.1) |
-| `Csag.AzureSqlFederatedIdentity:ClientId` | `Csag.AzureSqlFederatedIdentity__ClientId` | Application (client) ID (step 2.1) |
-| `Csag.AzureSqlFederatedIdentity:Google:ServiceAccountEmail` | `Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail` | Service account email (step 1.2) |
-| `Csag.AzureSqlFederatedIdentity:RefreshAheadWindow` | `Csag.AzureSqlFederatedIdentity__RefreshAheadWindow` | Optional; how long before expiry the token is refreshed. Default `00:05:00`, must be positive |
-| `Csag.AzureSqlFederatedIdentity:EnableBackgroundRefresh` | `Csag.AzureSqlFederatedIdentity__EnableBackgroundRefresh` | Optional; default `true` |
+| `Csag.WorkloadIdentity:TenantId` | `Csag.WorkloadIdentity__TenantId` | Directory (tenant) ID (step 2.1) |
+| `Csag.WorkloadIdentity:ClientId` | `Csag.WorkloadIdentity__ClientId` | Application (client) ID (step 2.1) |
+| `Csag.WorkloadIdentity:Google:ServiceAccountEmail` | `Csag.WorkloadIdentity__Google__ServiceAccountEmail` | Service account email (step 1.2) |
+| `Csag.WorkloadIdentity:RefreshAheadWindow` | `Csag.WorkloadIdentity__RefreshAheadWindow` | Optional; how long before expiry the token is refreshed. Default `00:05:00`, must be positive |
+| `Csag.WorkloadIdentity:EnableBackgroundRefresh` | `Csag.WorkloadIdentity__EnableBackgroundRefresh` | Optional; default `true` |
 
 The first three are required; the application refuses to start if any of them is missing. In `appsettings.json`:
 
 ```json
 {
-  "Csag.AzureSqlFederatedIdentity": {
+  "Csag.WorkloadIdentity": {
     "TenantId": "<tenant-id>",
     "ClientId": "<client-id>",
     "Google": {
@@ -173,7 +173,7 @@ The first three are required; the application refuses to start if any of them is
 }
 ```
 
-The connection string is your own application's setting (the Demo reads `ConnectionStrings:DefaultConnection`). It names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.AzureSqlFederatedIdentity/README.md) shows how to register the library and attach the token to a `SqlConnection`.
+The connection string is your own application's setting (the Demo reads `ConnectionStrings:DefaultConnection`). It names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.WorkloadIdentity/README.md) shows how to register the library and attach the token to a `SqlConnection`.
 
 ## 5. Cloud Run
 
@@ -181,9 +181,9 @@ Deploy the application with the service account from step 1 as its runtime ident
 
 ```yaml
 # env.yaml
-Csag.AzureSqlFederatedIdentity__TenantId: "<tenant-id>"
-Csag.AzureSqlFederatedIdentity__ClientId: "<client-id>"
-Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail: "<name>@<project-id>.iam.gserviceaccount.com"
+Csag.WorkloadIdentity__TenantId: "<tenant-id>"
+Csag.WorkloadIdentity__ClientId: "<client-id>"
+Csag.WorkloadIdentity__Google__ServiceAccountEmail: "<name>@<project-id>.iam.gserviceaccount.com"
 ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
 ```
 
@@ -198,7 +198,7 @@ gcloud run deploy <service> \
 
 To change only the identity of an existing service, use `gcloud run services update <service> --service-account <name>@<project-id>.iam.gserviceaccount.com`. In the console, the runtime service account is under the service's **Security** tab and the variables under **Variables & Secrets**.
 
-At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.AzureSqlFederatedIdentity/README.md) maps the usual messages to their cause.
+At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.WorkloadIdentity/README.md) maps the usual messages to their cause.
 
 ## References
 

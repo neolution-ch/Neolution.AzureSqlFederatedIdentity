@@ -1,12 +1,12 @@
 # Contributing
 
-Thank you for helping improve Csag.AzureSqlFederatedIdentity. Bug reports, questions and pull requests are welcome on [GitHub](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity). For vulnerabilities, please follow [SECURITY.md](./SECURITY.md) instead of opening an issue.
+Thank you for helping improve Csag.WorkloadIdentity. Bug reports, questions and pull requests are welcome on [GitHub](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity). For vulnerabilities, please follow [SECURITY.md](./SECURITY.md) instead of opening an issue.
 
 ## Prerequisites
 
 - The .NET SDK pinned in [global.json](./global.json) (10.0.4xx; a newer 10.0 minor rolls forward), plus the **.NET 8 runtime**, because the tests also run on `net8.0`. `dotnet --list-runtimes` should list `Microsoft.NETCore.App 8.0.x` alongside 10.0.x.
 - [Node.js](https://nodejs.org/) 24 for the changesets tooling: run `npm ci` once in the repository root.
-- Docker, only if you want to build the Demo container (see the [Demo README](./Csag.AzureSqlFederatedIdentity.Demo/README.md)).
+- Docker, only if you want to build the Demo container (see the [Demo README](./Csag.WorkloadIdentity.Demo/README.md)).
 
 ## Build and test
 
@@ -15,7 +15,7 @@ dotnet restore --locked-mode        # what CI runs; fails if a packages.lock.jso
 dotnet build -c Release             # warnings are errors in Release, so this is the gate to pass
 dotnet test -c Release              # runs the suite on net8.0 and net10.0
 dotnet test -c Release -f net10.0   # a single target framework, for a quicker loop
-dotnet pack Csag.AzureSqlFederatedIdentity -c Release -o ./nupkgs
+dotnet pack Csag.WorkloadIdentity -c Release -o ./nupkgs
 ```
 
 The library targets `net8.0` and `net10.0`, and CI runs the tests on both; a change is not done until both are green. Build in `Release` before you push: `TreatWarningsAsErrors` is on and the StyleCop rules from `Neolution.CodeAnalysis` are enforced there, so a build that is clean in `Debug` can still fail. Fix every warning rather than suppressing it.
@@ -29,7 +29,7 @@ The analyzers enforce most of these; the rest come from the existing code.
 - `using` directives inside the namespace, sorted alphabetically with `System` namespaces first.
 - Nullable reference types are enabled; `ConfigureAwait(false)` on every `await` in the library.
 - Comments explain the non-obvious *why* of the code as it stands; they do not narrate edits or previous states.
-- Tests use xunit, Shouldly and NSubstitute, follow the `Given_<state>_When_<action>_Then_<outcome>` naming with Arrange/Act/Assert sections, and live in `Csag.AzureSqlFederatedIdentity.UnitTests`. Read an existing test class before adding one.
+- Tests use xunit, Shouldly and NSubstitute, follow the `Given_<state>_When_<action>_Then_<outcome>` naming with Arrange/Act/Assert sections, and live in `Csag.WorkloadIdentity.UnitTests`. Read an existing test class before adding one.
 
 ## Dependencies
 
@@ -54,7 +54,7 @@ A changeset file looks like this:
 
 ```markdown
 ---
-"@neolution-ch/csag-azure-sql-federated-identity": patch
+"@neolution-ch/csag-workload-identity": patch
 ---
 
 Describe the change from the consumer's point of view.

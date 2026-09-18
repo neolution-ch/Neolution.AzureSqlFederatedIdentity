@@ -30,7 +30,7 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          # Tag format: @neolution-ch/csag-azure-sql-federated-identity@0.1.0
+          # Tag format: @neolution-ch/csag-workload-identity@0.1.0
           TAG="${{ github.event.release.tag_name }}"
           echo "version=${TAG##*@}" >> "$GITHUB_OUTPUT"
 
@@ -49,12 +49,12 @@ jobs:
         run: dotnet test --configuration Release --no-build
 
       - name: Pack
-        run: dotnet pack Csag.AzureSqlFederatedIdentity --configuration Release --no-build -p:Version=${{ steps.version.outputs.version }} -o ./nupkgs
+        run: dotnet pack Csag.WorkloadIdentity --configuration Release --no-build -p:Version=${{ steps.version.outputs.version }} -o ./nupkgs
 
       - name: Verify packed version matches the release tag
         run: |
           ls ./nupkgs
-          test -f "./nupkgs/Csag.AzureSqlFederatedIdentity.${{ steps.version.outputs.version }}.nupkg"
+          test -f "./nupkgs/Csag.WorkloadIdentity.${{ steps.version.outputs.version }}.nupkg"
 
       - name: Push to nuget.org
         run: |
