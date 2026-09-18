@@ -8,7 +8,7 @@ Every access token the library obtains is issued by Microsoft Entra ID to one id
 
 | | A. Azure managed identity | B. Google Cloud to Azure federation |
 |---|---|---|
-| The application runs on | Azure: App Service, Container Apps, Functions, a virtual machine, AKS | Google Cloud: Cloud Run, GKE, Compute Engine; or a workstation with Application Default Credentials |
+| The application runs on | Azure: App Service, Container Apps, Functions, a virtual machine | Google Cloud: Cloud Run, GKE, Compute Engine; or a workstation with Application Default Credentials |
 | The identity | The system-assigned managed identity of the hosting resource, or a user-assigned managed identity attached to it | An app registration or a user-assigned managed identity that holds a federated credential trusting the application's Google service account |
 | `Provider` in the configuration | `ManagedIdentity` | `Google` |
 | Set up in | [Section A](#a-azure-managed-identity) | [Section B](#b-google-cloud-to-azure-federation) |
@@ -27,7 +27,7 @@ Values you collect along the way:
 
 ## A. Azure managed identity
 
-A [managed identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) is an identity in Microsoft Entra ID whose credentials Azure creates and rotates; the application obtains tokens from the hosting resource's local identity endpoint and never sees a secret. Nothing is needed at runtime beyond the identity being enabled on, or attached to, the resource the application runs on. The steps below use App Service; Container Apps, Functions, virtual machines and AKS expose the same **Identity** setting.
+A [managed identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) is an identity in Microsoft Entra ID whose credentials Azure creates and rotates; the application obtains tokens from the hosting resource's local identity endpoint and never sees a secret. Nothing is needed at runtime beyond the identity being enabled on, or attached to, the resource the application runs on. The steps below use App Service; Container Apps, Functions and virtual machines expose the same **Identity** setting.
 
 ### A.1 System-assigned identity
 
