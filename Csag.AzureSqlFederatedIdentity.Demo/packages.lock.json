@@ -29,18 +29,6 @@
           "Microsoft.EntityFrameworkCore.Relational": "10.0.12"
         }
       },
-      "Azure.Core": {
-        "type": "Transitive",
-        "resolved": "1.53.0",
-        "contentHash": "x9c/toFMOtRrlTdFuE7rlGCVAduQzWVfKmLz5juj41zJAXEhYD5hluiUyyAEzJ6OxpBnKtiaBztzwpZITAVjtg==",
-        "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "10.0.3",
-          "Microsoft.Identity.Client": "4.83.1",
-          "Microsoft.Identity.Client.Extensions.Msal": "4.83.1",
-          "System.ClientModel": "1.10.0",
-          "System.Memory.Data": "10.0.3"
-        }
-      },
       "Google.Api.CommonProtos": {
         "type": "Transitive",
         "resolved": "2.17.0",
@@ -311,9 +299,23 @@
       "csag.azuresqlfederatedidentity": {
         "type": "Project",
         "dependencies": {
+          "Azure.Core": "[1.53.0, )",
           "Azure.Identity": "[1.21.0, )",
           "Google.Cloud.Iam.Credentials.V1": "[2.5.0, )",
           "Grpc.Core.Api": "[2.83.0, )"
+        }
+      },
+      "Azure.Core": {
+        "type": "CentralTransitive",
+        "requested": "[1.53.0, )",
+        "resolved": "1.53.0",
+        "contentHash": "x9c/toFMOtRrlTdFuE7rlGCVAduQzWVfKmLz5juj41zJAXEhYD5hluiUyyAEzJ6OxpBnKtiaBztzwpZITAVjtg==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.3",
+          "Microsoft.Identity.Client": "4.83.1",
+          "Microsoft.Identity.Client.Extensions.Msal": "4.83.1",
+          "System.ClientModel": "1.10.0",
+          "System.Memory.Data": "10.0.3"
         }
       },
       "Azure.Identity": {
