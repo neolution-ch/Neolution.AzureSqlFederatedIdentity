@@ -125,8 +125,8 @@
             this.SetupGeneratedToken(IdToken);
 
             // Act
-            await Should.ThrowAsync<TaskCanceledException>(() => this.provider.GetIdTokenAsync(CancellationToken.None));
-            var result = await this.provider.GetIdTokenAsync(CancellationToken.None);
+            await Should.ThrowAsync<TaskCanceledException>(() => this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None));
+            var result = await this.provider.GetIdTokenAsync(ServiceAccountEmail, CancellationToken.None);
 
             // Assert
             result.ShouldBe(IdToken);
