@@ -11,7 +11,7 @@ A .NET library that lets an application running on Google Cloud connect to Azure
 | Project | Description |
 |---|---|
 | [`Csag.WorkloadIdentity`](./Csag.WorkloadIdentity) | The library, published as the [Csag.WorkloadIdentity](https://www.nuget.org/packages/Csag.WorkloadIdentity) NuGet package for `net8.0` and `net10.0`. Its [README](./Csag.WorkloadIdentity/README.md) is the package documentation; the [CHANGELOG](./Csag.WorkloadIdentity/CHANGELOG.md) is generated from changesets. |
-| [`Csag.WorkloadIdentity.Demo`](./Csag.WorkloadIdentity.Demo) | An ASP.NET Core application for Cloud Run that reads from Azure SQL through the library. Its [README](./Csag.WorkloadIdentity.Demo/README.md) explains how to run it from source, in Docker and on Cloud Run. |
+| [`Csag.WorkloadIdentity.Demo`](./Csag.WorkloadIdentity.Demo) | An ASP.NET Core application that reads from Azure SQL and, optionally, Blob Storage through the library, on Cloud Run or an Azure host. Its [README](./Csag.WorkloadIdentity.Demo/README.md) explains how to run it from source, in Docker and on Cloud Run. |
 | [`Csag.WorkloadIdentity.UnitTests`](./Csag.WorkloadIdentity.UnitTests) | xunit tests for the library, run on both target frameworks. |
 
 ## Quick start

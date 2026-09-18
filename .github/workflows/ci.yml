@@ -91,9 +91,11 @@ jobs:
         run: docker build -f Csag.WorkloadIdentity.Demo/Dockerfile -t csag-demo .
 
       # The library validates its settings at startup, so the container only reaches "/" with placeholder values.
+      # Blob Storage is left unconfigured on purpose: the Demo then skips it instead of needing a storage account.
       - name: Smoke test Demo image
         run: |
           docker run -d -p 8080:8080 --name csag-demo \
+            -e Csag.WorkloadIdentity__AzureSql__Provider=Google \
             -e Csag.WorkloadIdentity__AzureSql__Google__TenantId=placeholder \
             -e Csag.WorkloadIdentity__AzureSql__Google__ClientId=placeholder \
             -e Csag.WorkloadIdentity__AzureSql__Google__ServiceAccountEmail=placeholder@example.invalid \
