@@ -358,17 +358,17 @@ At startup the application validates its configuration. The first token request 
 
 Once every application and every person reaches the database with a Microsoft Entra identity, password-based access is only an attack surface. Remove it in two steps.
 
-1. **Audit and remove password-based users.** Connected as the Microsoft Entra admin, list the principals that authenticate with a password, that is, contained users with their own password (`DATABASE`) and users mapped to server logins (`INSTANCE`), and drop the ones no longer needed:
+1. **Audit and remove password-based users.** Connected as the Microsoft Entra admin, list the contained users that carry their own password (`authentication_type_desc = 'DATABASE'`) and drop the ones no longer needed:
 
    ```sql
    SELECT name, type_desc, authentication_type_desc
    FROM sys.database_principals
-   WHERE authentication_type_desc IN ('DATABASE', 'INSTANCE');
+   WHERE authentication_type_desc = 'DATABASE';
 
    DROP USER [<username>];
    ```
 
-   Do this only after confirming that everything that used those users has moved to the passwordless connection.
+   Users with `authentication_type_desc = 'INSTANCE'` are mapped to server logins, which may be SQL logins with a password or Microsoft Entra logins; check the login behind each one in `master` (`SELECT name, type_desc FROM sys.server_principals`, where `SQL_LOGIN` is password-based and `EXTERNAL_LOGIN` is Microsoft Entra) before dropping anything. Do this only after confirming that everything that used those users has moved to the passwordless connection.
 
 2. **Enable Microsoft Entra-only authentication on the server.** This turns off SQL authentication for the whole logical server, including the server admin login; existing SQL logins are kept but can no longer connect. In the portal open the server's **Microsoft Entra ID** page under **Settings** and check **Support only Microsoft Entra authentication for this server**, or run:
 
