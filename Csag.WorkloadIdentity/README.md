@@ -294,7 +294,7 @@ services.AddWorkloadIdentity(options =>
 
 `WorkloadIdentityOptions`, `WorkloadIdentityResourceOptions`, `WorkloadIdentityProvider`, `GoogleOptions` and `ManagedIdentityOptions` live in `Csag.WorkloadIdentity.Options`; the provider interfaces and `IAccessTokenProvider` in `Csag.WorkloadIdentity.Abstractions`; `AddWorkloadIdentity`, `WorkloadIdentityTokenCredential` and `TokenScope` in `Csag.WorkloadIdentity`.
 
-The options are validated when the host starts: no resource section at all, a missing value in a configured resource's provider section, an unknown `Provider`, or a non-positive `RefreshAheadWindow` throws an `OptionsValidationException` that names every offending value by its path, for example `AzureSql:Google:ServiceAccountEmail must be provided.` Calling `AddWorkloadIdentity` more than once is harmless. Both token providers are always registered; resolving the provider of a resource whose section is absent throws an `InvalidOperationException` that names the missing section.
+The options are validated when the host starts: no resource section at all, a missing value in a configured resource's provider section, or a non-positive `RefreshAheadWindow` throws an `OptionsValidationException` that names every offending value by its path, for example `AzureSql:Google:ServiceAccountEmail must be provided.` A `Provider` value other than `ManagedIdentity` or `Google` fails earlier, when the configuration is bound. Calling `AddWorkloadIdentity` more than once is harmless. Both token providers are always registered; resolving the provider of a resource whose section is absent throws an `InvalidOperationException` that names the missing section.
 
 ## Migrating from Csag.AzureSqlFederatedIdentity / Neolution.AzureSqlFederatedIdentity
 
@@ -352,7 +352,8 @@ The options are validated when the host starts: no resource section at all, a mi
 
 | Symptom | Likely cause |
 |---|---|
-| The host fails to start with `OptionsValidationException` | No resource section, a required key missing in a configured resource, an unknown `Provider`, or a non-positive `RefreshAheadWindow`; the message names the value. |
+| The host fails to start with `OptionsValidationException` | No resource section, a required key missing in a configured resource, or a non-positive `RefreshAheadWindow`; the message names the value. |
+| The host fails to start with `InvalidOperationException: Failed to convert configuration value … 'Provider'` | The `Provider` value is not `ManagedIdentity` or `Google`. |
 | `InvalidOperationException`: "The AzureSql resource is not configured" (or `BlobStorage`) | `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider` was resolved, but the configuration has no section for that resource. |
 | `CredentialUnavailableException`: no managed identity endpoint found | `ManagedIdentity` is selected but the application is not running on an Azure resource with a managed identity, for example on a workstation. |
 | The managed identity endpoint reports that the identity was not found | The user-assigned identity is not attached to the hosting resource, or `ManagedIdentity:ClientId` is wrong. |
