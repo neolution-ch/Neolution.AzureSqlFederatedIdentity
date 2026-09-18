@@ -5,31 +5,34 @@
     using Microsoft.Data.SqlClient;
     using Microsoft.EntityFrameworkCore;
 
-    public class AppDbContextFactory : IAppDbContextFactory, IDbContextFactory<AppDbContext>
+    public class AppDbContextFactory : IAppDbContextFactory
     {
-        private readonly DbContextOptionsBuilder<AppDbContext> optionsBuilder;
+        private readonly string? connectionString;
         private readonly IAzureSqlTokenProvider tokenProvider;
 
         public AppDbContextFactory(IConfiguration configuration, IAzureSqlTokenProvider tokenProvider)
         {
+            this.connectionString = configuration.GetConnectionString("DefaultConnection");
             this.tokenProvider = tokenProvider;
-            this.optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-
-            var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not set.");
-            this.optionsBuilder.UseSqlServer(connectionString);
-        }
-
-        public AppDbContext CreateDbContext()
-        {
-            return this.CreateDbContextAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         public async Task<AppDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         {
-            var context = new AppDbContext(this.optionsBuilder.Options);
+            // Checked on use: the factory itself is constructed while the endpoint's parameters are bound, which is
+            // outside the handler's error handling.
+            if (string.IsNullOrWhiteSpace(this.connectionString))
+            {
+                throw new InvalidOperationException("Connection string 'DefaultConnection' not set.");
+            }
+
+            // The connection string carries no credentials; the federated access token authenticates the connection.
+            var accessToken = await this.tokenProvider.GetAzureSqlAccessTokenAsync(cancellationToken);
+
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(this.connectionString).Options;
+            var context = new AppDbContext(options);
             if (context.Database.GetDbConnection() is SqlConnection sqlConnection)
             {
-                sqlConnection.AccessToken = await this.tokenProvider.GetAzureSqlAccessTokenAsync(cancellationToken);
+                sqlConnection.AccessToken = accessToken;
             }
 
             return context;
