@@ -116,7 +116,7 @@
             lock (this.clientLock)
             {
                 var current = this.clientCreation;
-                creation = current is null || current.IsFaulted ? this.StartClientCreationAsync() : current;
+                creation = current is null || current.IsFaulted || current.IsCanceled ? this.StartClientCreationAsync() : current;
             }
 
             return creation.WaitAsync(cancellationToken);
