@@ -55,6 +55,11 @@ INSERT INTO dbo.TestTable (Value) VALUES (N'hello'), (N'world');
 
 ```shell
 dotnet run --project Csag.AzureSqlFederatedIdentity.Demo
+```
+
+The application stays in the foreground; request the endpoint from a second terminal:
+
+```shell
 curl http://localhost:5172/test
 ```
 
@@ -77,6 +82,11 @@ docker run --rm -p 8080:8080 --user "$(id -u):$(id -g)" \
   -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro" \
   -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json \
   csag-demo
+```
+
+The container stays in the foreground as well; from a second terminal:
+
+```shell
 curl http://localhost:8080/test
 ```
 
