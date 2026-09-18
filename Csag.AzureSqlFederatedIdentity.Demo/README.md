@@ -66,10 +66,10 @@ The image is built from the **repository root**, because the Demo references the
 docker build -f Csag.AzureSqlFederatedIdentity.Demo/Dockerfile -t csag-demo .
 ```
 
-The container listens on port 8080 and runs as the non-root `app` user (uid 1654). Outside Cloud Run it has no ADC of its own, so mount your workstation's credential file (it must be readable by that user) and point the Google SDK at it:
+The container listens on port 8080 and runs as the non-root `app` user (uid 1654). Outside Cloud Run it has no ADC of its own, so mount your workstation's credential file and point the Google SDK at it. `gcloud` creates that file readable by your user only, so for this local test run the container as your own user (`--user`), which overrides the image's `app` user; on Windows the mounted file is readable regardless and `--user` can be left out. Cloud Run needs none of this:
 
 ```shell
-docker run --rm -p 8080:8080 \
+docker run --rm -p 8080:8080 --user "$(id -u):$(id -g)" \
   -e Csag.AzureSqlFederatedIdentity__TenantId="<tenant-id>" \
   -e Csag.AzureSqlFederatedIdentity__ClientId="<client-id>" \
   -e Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail="<name>@<project>.iam.gserviceaccount.com" \
