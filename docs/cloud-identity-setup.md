@@ -1,8 +1,74 @@
 # Cloud and identity setup
 
-This guide sets up everything outside your code so that an application on Google Cloud can connect to Azure SQL through `Csag.WorkloadIdentity`: the Google Cloud service account and its permissions, the app registration and federated credential in Microsoft Entra ID (formerly Azure Active Directory), the database user in Azure SQL, the application's configuration and the Cloud Run deployment. For the code that uses the token, see the [package README](../Csag.WorkloadIdentity/README.md).
+This guide sets up everything outside your code so that an application can reach Azure SQL and Azure Blob Storage through `Csag.WorkloadIdentity` without a password, key or secret: the identity the application presents to Microsoft Entra ID (formerly Azure Active Directory), the trust that identity needs, the grants on each resource, the application's configuration and the deployment. For the code that uses the tokens, see the [package README](../Csag.WorkloadIdentity/README.md); the [Demo](../Csag.WorkloadIdentity.Demo/README.md) is a complete application.
 
-## How the pieces fit
+## Choose your identity configuration
+
+Every access token the library obtains is issued by Microsoft Entra ID to one identity. Where the application runs decides which identity that is:
+
+| | A. Azure managed identity | B. Google Cloud to Azure federation |
+|---|---|---|
+| The application runs on | Azure: App Service, Container Apps, Functions, a virtual machine, AKS | Google Cloud: Cloud Run, GKE, Compute Engine; or a workstation with Application Default Credentials |
+| The identity | The system-assigned managed identity of the hosting resource, or a user-assigned managed identity attached to it | An app registration or a user-assigned managed identity that holds a federated credential trusting the application's Google service account |
+| `Provider` in the configuration | `ManagedIdentity` | `Google` |
+| Set up in | [Section A](#a-azure-managed-identity) | [Section B](#b-google-cloud-to-azure-federation) |
+
+The choice is made per resource (`AzureSql`, `BlobStorage`), so one application can, for example, use its system-assigned identity for Azure SQL and a user-assigned identity for Blob Storage. Whatever the identity, the grants in [section C](#c-grant-access-to-the-resources) are the same, [section D](#d-configure-the-application) maps everything onto the configuration keys, and [section E](#e-deploy) covers the deployment.
+
+Values you collect along the way:
+
+| Value | Comes from | Used as |
+|---|---|---|
+| Identity name: the App Service name (system-assigned), the managed identity's name or the app registration's display name | A.1, A.2 or B.2 | Database user name (C.1); the member of the Blob role assignment (C.2) |
+| Client ID of a user-assigned managed identity | A.2 or B.2 | `ManagedIdentity:ClientId` (A) or `Google:ClientId` (B) |
+| Application (client) ID of an app registration | B.2 | `Google:ClientId` |
+| Directory (tenant) ID | B.2 | `Google:TenantId` |
+| Service account email and unique ID | B.1 | `Google:ServiceAccountEmail`; subject of the federated credential (B.2) |
+
+## A. Azure managed identity
+
+A [managed identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) is an identity in Microsoft Entra ID whose credentials Azure creates and rotates; the application obtains tokens from the hosting resource's local identity endpoint and never sees a secret. Nothing is needed at runtime beyond the identity being enabled on, or attached to, the resource the application runs on. The steps below use App Service; Container Apps, Functions, virtual machines and AKS expose the same **Identity** setting.
+
+### A.1 System-assigned identity
+
+A system-assigned identity is created with the resource, shares its lifecycle and cannot be attached to anything else. It is the simplest choice for a single application.
+
+1. In the Azure portal open the App Service and go to **Settings** > **Identity**.
+2. On the **System assigned** tab switch **Status** to **On** and select **Save**.
+
+Or with the Azure CLI:
+
+```shell
+az webapp identity assign --resource-group <resource-group> --name <app-name>
+```
+
+The name of a system-assigned identity is always the name of the App Service; that is the `<identity-name>` the database user in C.1 is created with. Configure the resource with `"UseSystemAssignedIdentity": true`; no client ID is needed.
+
+### A.2 User-assigned identity
+
+A user-assigned identity is a standalone Azure resource that can be attached to several resources and outlives any of them, so its grants can be made before the application exists and survive its re-creation.
+
+1. In the Azure portal search for **Managed Identities**, select **Create**, choose the subscription, resource group, region and a name, and create it.
+2. On the identity's **Overview** page note the **Client ID**.
+3. Open the App Service, go to **Settings** > **Identity** > **User assigned**, select **Add**, pick the identity and confirm.
+
+Or with the Azure CLI:
+
+```shell
+az identity create --resource-group <resource-group> --name <identity-name>
+az identity show --resource-group <resource-group> --name <identity-name> --query clientId --output tsv
+az webapp identity assign --resource-group <resource-group> --name <app-name> --identities <identity-resource-id>
+```
+
+`<identity-resource-id>` is the identity's full resource ID (`az identity show ... --query id --output tsv`). The identity's name is the `<identity-name>` for C.1; its client ID goes into `ManagedIdentity:ClientId`.
+
+### A.3 Local development
+
+A workstation has no managed identity endpoint, so `"Provider": "ManagedIdentity"` only works on Azure. To run the same code locally, either configure the resource with the `Google` provider and Application Default Credentials (section B), or register your own `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider` before calling `AddWorkloadIdentity` (every registration is a `TryAdd`, so yours wins), for example one built on `Azure.Identity`'s `AzureCliCredential`.
+
+## B. Google Cloud to Azure federation
+
+With [workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation), Microsoft Entra ID accepts a token from an external identity provider as the credential of one of its own identities. Here the external token is a Google-signed ID token for the application's service account, and the Microsoft Entra identity that trusts it is either an app registration or a user-assigned managed identity:
 
 ```text
 Your application, running as a Google service account (Application Default Credentials)
@@ -11,28 +77,18 @@ Your application, running as a Google service account (Application Default Crede
    ▼
 Google-signed ID token   iss = https://accounts.google.com, sub = <service account unique ID>
    │
-   │  2. client assertion for app registration <ClientId> in tenant <TenantId>      Microsoft Entra ID
+   │  2. client assertion for <ClientId> in tenant <TenantId>      Microsoft Entra ID
    ▼
-Access token for https://database.windows.net/.default
+Access token for https://database.windows.net/.default or https://storage.azure.com/.default
    │
-   │  3. SqlConnection.AccessToken
+   │  3. SqlConnection.AccessToken, or TokenCredential for BlobServiceClient
    ▼
-Azure SQL, as the database user created for the app registration
+Azure SQL or Blob Storage, as the identity that holds the federated credential
 ```
 
-Values you collect along the way:
+### B.1 Google Cloud
 
-| Value | Comes from | Used as |
-|---|---|---|
-| Service account email | Google Cloud, step 1.2 | `Google:ServiceAccountEmail` (step 4) |
-| Service account unique ID | Google Cloud, step 1.2 | Subject of the federated credential (step 2.2) |
-| Directory (tenant) ID | Microsoft Entra ID, step 2.1 | `TenantId` (step 4) |
-| Application (client) ID | Microsoft Entra ID, step 2.1 | `ClientId` (step 4) |
-| App registration display name | Microsoft Entra ID, step 2.1 | Database user name (step 3.2) |
-
-## 1. Google Cloud
-
-### 1.1 Enable the IAM Service Account Credentials API
+#### B.1.1 Enable the IAM Service Account Credentials API
 
 The library mints the ID token by calling `generateIdToken` on this API. It must be enabled in the project that owns the service account, otherwise every call fails with `PERMISSION_DENIED`:
 
@@ -40,13 +96,13 @@ The library mints the ID token by calling `generateIdToken` on this API. It must
 gcloud services enable iamcredentials.googleapis.com --project <project-id>
 ```
 
-### 1.2 Create the service account
+#### B.1.2 Create the service account
 
 ```shell
 gcloud iam service-accounts create <name> --project <project-id> --display-name "<display name>"
 ```
 
-The service account's email is `<name>@<project-id>.iam.gserviceaccount.com`. Also note its numeric **unique ID**, which the federated credential in step 2.2 uses as the subject:
+The service account's email is `<name>@<project-id>.iam.gserviceaccount.com`. Also note its numeric **unique ID**, which the federated credential in B.2 uses as the subject:
 
 ```shell
 gcloud iam service-accounts describe <name>@<project-id>.iam.gserviceaccount.com --format 'value(uniqueId)'
@@ -54,7 +110,7 @@ gcloud iam service-accounts describe <name>@<project-id>.iam.gserviceaccount.com
 
 The Google Cloud console shows both values on the service account's details page under **IAM & Admin** > **Service Accounts**.
 
-### 1.3 Grant the least privilege needed
+#### B.1.3 Grant the least privilege needed
 
 The only IAM operation the library performs is `generateIdToken`, which requires the single permission `iam.serviceAccounts.getOpenIdToken` on the service account. The predefined role that contains exactly that permission is **Service Account OpenID Connect Identity Token Creator** (`roles/iam.serviceAccountOpenIdTokenCreator`). Grant it to the identity the application runs as, **on the service account resource itself**:
 
@@ -64,7 +120,7 @@ gcloud iam service-accounts add-iam-policy-binding <name>@<project-id>.iam.gserv
   --role roles/iam.serviceAccountOpenIdTokenCreator
 ```
 
-The member here is the service account itself, which is the intended deployment: the Cloud Run service runs as this account (step 5) and mints ID tokens for it. Google's Service Account Credentials API allows this; its [self-impersonation](https://cloud.google.com/iam/docs/service-account-creds) restriction covers generating access tokens and signing, not ID tokens. A developer who runs the application on a workstation needs the same role on the service account for their own account:
+The member here is the service account itself, which is the intended deployment: the Cloud Run service runs as this account (E.2) and mints ID tokens for it. Google's Service Account Credentials API allows this; its [self-impersonation](https://cloud.google.com/iam/docs/service-account-creds) restriction covers generating access tokens and signing, not ID tokens. A developer who runs the application on a workstation needs the same role on the service account for their own account:
 
 ```shell
 gcloud iam service-accounts add-iam-policy-binding <name>@<project-id>.iam.gserviceaccount.com \
@@ -77,94 +133,154 @@ Why this binding and not a broader one:
 - **Bind on the service account, not on the project.** A project-level binding (`gcloud projects add-iam-policy-binding`) applies to every service account in the project, including ones created later, so the member could mint ID tokens for all of them. A binding on the service account limits the grant to that one account, which is what Google recommends for [direct short-lived credentials](https://cloud.google.com/iam/docs/create-short-lived-credentials-direct).
 - **Prefer the OpenID Token Creator role to Service Account Token Creator.** `roles/iam.serviceAccountTokenCreator` additionally grants `iam.serviceAccounts.getAccessToken`, `signBlob`, `signJwt` and `implicitDelegation`, that is, full impersonation of the account. The library needs none of those.
 
-### 1.4 Application Default Credentials
+#### B.1.4 Application Default Credentials
 
 The library never reads a key file of its own. It uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) (ADC), which the Google client library resolves from the `GOOGLE_APPLICATION_CREDENTIALS` environment variable, then from the credential file written by `gcloud auth application-default login`, and finally from the service account attached to the Cloud Run, GKE or Compute Engine resource.
 
-- On Cloud Run nothing needs configuring beyond the runtime service account (step 5).
-- On a workstation run `gcloud auth application-default login` once. The application then acts as your user account, which needs the role from step 1.3.
+- On Cloud Run nothing needs configuring beyond the runtime service account (E.2).
+- On a workstation run `gcloud auth application-default login` once. The application then acts as your user account, which needs the role from B.1.3.
 - Do not create a service account key; nothing in this setup requires one.
 
-## 2. Microsoft Entra ID
+### B.2 Microsoft Entra ID: the holder of the federated credential
 
-### 2.1 Register an application
+The federated credential is attached to a Microsoft Entra identity, and that identity is what Azure SQL and Blob Storage see. The library accepts either kind of holder in `Google:ClientId`; pick one:
 
-1. In the [Azure portal](https://portal.azure.com/) go to **Microsoft Entra ID** > **App registrations** > **New registration**.
+| | Option 1: app registration | Option 2: user-assigned managed identity |
+|---|---|---|
+| Created in | Microsoft Entra ID (**App registrations**); requires permission to register applications in the tenant | An Azure subscription (**Managed Identities**); requires Azure RBAC rights on a resource group and no Microsoft Entra role |
+| `Google:ClientId` | The registration's **Application (client) ID** | The identity's **Client ID** |
+| `<identity-name>` for the grants in section C | The registration's display name | The identity's name |
+
+Both options need the **Directory (tenant) ID** of the tenant, shown on the tenant's **Microsoft Entra ID** > **Overview** page, as `Google:TenantId`.
+
+#### B.2.1 Option 1: register an application
+
+1. In the Azure portal go to **Microsoft Entra ID** > **App registrations** > **New registration**.
 2. Enter a name. "Accounts in this organizational directory only" is sufficient, and no redirect URI is needed.
 3. On the registration's **Overview** page copy the **Application (client) ID** and the **Directory (tenant) ID**, and note the display name.
 
-Do not create a client secret or certificate: the federated credential in the next step replaces them.
+Do not create a client secret or certificate: the federated credential in B.2.3 replaces them.
 
-### 2.2 Add a federated credential
+#### B.2.2 Option 2: create a user-assigned managed identity
 
-Under the registration go to **Certificates & secrets** > **Federated credentials** > **Add credential** and choose the **Other issuer** scenario:
+Create the identity as in A.2 (portal or `az identity create`) and note its **Client ID** and name. It is only the holder of the federated credential, so it does not need to be attached to any Azure resource. Microsoft documents this scenario under [Configure a user-assigned managed identity to trust an external identity provider](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust-user-assigned-managed-identity).
+
+#### B.2.3 Add the federated credential
+
+Where the credential is added depends on the holder:
+
+- **App registration:** under the registration go to **Certificates & secrets** > **Federated credentials** > **Add credential** and choose the **Other issuer** scenario.
+- **User-assigned managed identity:** under the identity go to **Settings** > **Federated credentials** > **Add Credential** and choose the **Other issuer** scenario.
+
+Fill in the same values in both cases:
 
 | Field | Value |
 |---|---|
 | Issuer | `https://accounts.google.com` |
-| Subject identifier | The service account's **unique ID** from step 1.2 (the numeric ID, not the email) |
+| Subject identifier | The service account's **unique ID** from B.1.2 (the numeric ID, not the email) |
 | Audience | `api://AzureADTokenExchange` (the default) |
 | Name | Any name, for example the service account's name |
 
-The audience is fixed: the library requests every Google ID token with exactly `api://AzureADTokenExchange`, which is the value Microsoft Entra ID recommends for workload identity federation. It is not the app registration's client ID and not the Azure SQL resource. Microsoft Entra ID fetches Google's signing keys through the issuer, verifies the ID token's signature, and accepts it as a client assertion only if its `sub` and `aud` claims match this credential.
+The audience is fixed: the library requests every Google ID token with exactly `api://AzureADTokenExchange`, which is the value Microsoft Entra ID recommends for workload identity federation. It is neither the holder's client ID nor the Azure resource. Microsoft Entra ID fetches Google's signing keys through the issuer, verifies the ID token's signature, and accepts it as a client assertion only if its `sub` and `aud` claims match this credential.
 
-## 3. Azure SQL
+## C. Grant access to the resources
 
-### 3.1 Set a Microsoft Entra admin for the server
+The identity from section A or B needs a grant on each resource the application is configured for. The grant is the same whichever way the identity was set up. `<identity-name>` below is the name from the table at the top: the App Service name for a system-assigned identity, the managed identity's name, or the app registration's display name.
 
-In the Azure portal open the logical SQL server and, under **Settings** > **Microsoft Entra ID**, set an admin if none is set. Only a Microsoft Entra identity can create database users from an external provider, so connect to the database as that admin (for example with SQL Server Management Studio, Azure Data Studio or `sqlcmd` using Microsoft Entra authentication) to run the statements below.
+### C.1 Azure SQL
 
-### 3.2 Create a database user for the app registration
+#### C.1.1 Set a Microsoft Entra admin for the server
 
-In the target database (not in `master`), create a contained user for the app registration. The user represents the app registration; the Google service account never appears in Azure SQL:
+In the Azure portal open the logical SQL server, select **Microsoft Entra ID** under **Settings**, then **Set admin**, if no admin is set. Only a Microsoft Entra identity can create database users from an external provider, so connect to the database as that admin (for example with SQL Server Management Studio, Azure Data Studio or `sqlcmd` using Microsoft Entra authentication) to run the statements below. If the admin is itself a service principal or managed identity rather than a user, the server additionally needs a server identity with permission to read Microsoft Graph before it can create such users; Microsoft describes that setup under [service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal). A user admin needs nothing extra.
+
+#### C.1.2 Create a database user for the identity
+
+In the target database (not in `master`), create a contained user for the identity. With Google federation, the user represents the holder of the federated credential; the Google service account never appears in Azure SQL:
 
 Creating a user for a service principal, which is what an app registration or a managed identity is, needs one more thing than creating one for a person: Azure SQL cannot look the principal up with the connected admin's permissions, so the SQL engine uses the *server identity*, the managed identity assigned to the logical server, to query Microsoft Graph. Assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement below fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
 
 ```sql
-CREATE USER [<app-registration-display-name>] FROM EXTERNAL PROVIDER;
+CREATE USER [<identity-name>] FROM EXTERNAL PROVIDER;
 ```
 
 Then grant permissions. The built-in roles are a convenient starting point:
 
 ```sql
-ALTER ROLE db_datareader ADD MEMBER [<app-registration-display-name>];
-ALTER ROLE db_datawriter ADD MEMBER [<app-registration-display-name>];
+ALTER ROLE db_datareader ADD MEMBER [<identity-name>];
+ALTER ROLE db_datawriter ADD MEMBER [<identity-name>];
 ```
 
 `db_datareader` and `db_datawriter` allow reading and writing every table in the database. Narrow that to what the application actually needs: a read-only service needs only `db_datareader`, and explicit grants scope access to particular objects, for example:
 
 ```sql
-GRANT SELECT, INSERT ON dbo.Orders TO [<app-registration-display-name>];
-GRANT EXECUTE ON SCHEMA::dbo TO [<app-registration-display-name>];
+GRANT SELECT, INSERT ON dbo.Orders TO [<identity-name>];
+GRANT EXECUTE ON SCHEMA::dbo TO [<identity-name>];
 ```
 
 Neither built-in role allows schema changes; run migrations with a separate, more privileged identity rather than widening this one.
 
-### 3.3 Allow the network path
+#### C.1.3 Allow the network path
 
-The server's [network access controls](https://learn.microsoft.com/en-us/azure/azure-sql/database/network-access-controls-overview) must admit connections from where the application runs. Cloud Run's outbound IP addresses are not fixed by default, so to use IP firewall rules give the service a [static outbound IP address](https://cloud.google.com/run/docs/configuring/static-outbound-ip), or use private connectivity instead.
+The server's [network access controls](https://learn.microsoft.com/en-us/azure/azure-sql/database/network-access-controls-overview) must admit connections from where the application runs.
 
-## 4. Configure the application
+- **From Azure:** the server's **Allow Azure services and resources to access this server** setting admits every resource inside Azure, including other customers', which is more permissive than most deployments want. Prefer an IP firewall rule for the App Service's outbound addresses, or private connectivity through virtual network integration and a private endpoint.
+- **From Cloud Run:** its outbound IP addresses are not fixed by default, so to use IP firewall rules give the service a [static outbound IP address](https://cloud.google.com/run/docs/configuring/static-outbound-ip), or use private connectivity instead.
 
-The library binds its options from the `Csag.WorkloadIdentity` configuration section. These are the exact keys, with the environment variable form that .NET maps to the same keys (`__` stands for the `:` separator; the `.` in the section name is part of the variable name):
+### C.2 Azure Blob Storage
+
+Blob access is granted with Azure role-based access control on the storage account or, more narrowly, on a single container. Two [built-in roles](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage) cover most applications:
+
+| Role | Grants |
+|---|---|
+| **Storage Blob Data Reader** | Read and list containers and blobs |
+| **Storage Blob Data Contributor** | Read, write and delete containers and blobs |
+
+1. In the Azure portal open the storage account (or the container) and go to **Access control (IAM)** > **Add** > **Add role assignment**.
+2. Select the role. On the **Members** tab choose **Managed identity** and pick the identity (a system-assigned identity is listed under its resource type, for example App Service), or choose **User, group, or service principal** and search for the app registration by name.
+3. Select **Review + assign**.
+
+Or with the Azure CLI, given the object (principal) ID of the identity:
+
+```shell
+az role assignment create \
+  --role "Storage Blob Data Reader" \
+  --assignee-object-id <principal-object-id> \
+  --assignee-principal-type ServicePrincipal \
+  --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account>
+```
+
+The object ID is `az identity show ... --query principalId --output tsv` for a user-assigned identity, `az webapp identity show --resource-group <resource-group> --name <app-name> --query principalId --output tsv` for a system-assigned one, and `az ad sp show --id <application-client-id> --query id --output tsv` for an app registration's service principal. Append `/blobServices/default/containers/<container>` to the scope to restrict the grant to one container. A new [role assignment](https://learn.microsoft.com/en-us/azure/storage/blobs/assign-azure-role-data-access) can take up to 10 minutes to take effect.
+
+The application then needs only the account's blob endpoint, `https://<storage-account>.blob.core.windows.net`. Because nothing uses the account keys any more, you can [disallow Shared Key authorization](https://learn.microsoft.com/en-us/azure/storage/common/shared-key-authorization-prevent) on the account (**Settings** > **Configuration** > **Allow storage account key access** set to **Disabled**), so that a leaked key cannot be used.
+
+## D. Configure the application
+
+The library binds its options from the `Csag.WorkloadIdentity` configuration section. Each resource has its own section that selects the `Provider` and carries that provider's settings. These are the exact keys, with the environment variable form that .NET maps to the same keys (`__` stands for the `:` separator; the `.` in the section name is part of the variable name):
 
 | Configuration key | Environment variable | Value |
 |---|---|---|
-| `Csag.WorkloadIdentity:TenantId` | `Csag.WorkloadIdentity__TenantId` | Directory (tenant) ID (step 2.1) |
-| `Csag.WorkloadIdentity:ClientId` | `Csag.WorkloadIdentity__ClientId` | Application (client) ID (step 2.1) |
-| `Csag.WorkloadIdentity:Google:ServiceAccountEmail` | `Csag.WorkloadIdentity__Google__ServiceAccountEmail` | Service account email (step 1.2) |
-| `Csag.WorkloadIdentity:RefreshAheadWindow` | `Csag.WorkloadIdentity__RefreshAheadWindow` | Optional; how long before expiry the token is refreshed. Default `00:05:00`, must be positive |
+| `Csag.WorkloadIdentity:AzureSql:Provider` | `Csag.WorkloadIdentity__AzureSql__Provider` | `ManagedIdentity` (the default) or `Google` |
+| `Csag.WorkloadIdentity:AzureSql:ManagedIdentity:UseSystemAssignedIdentity` | `Csag.WorkloadIdentity__AzureSql__ManagedIdentity__UseSystemAssignedIdentity` | `true` for a system-assigned identity (A.1) |
+| `Csag.WorkloadIdentity:AzureSql:ManagedIdentity:ClientId` | `Csag.WorkloadIdentity__AzureSql__ManagedIdentity__ClientId` | Client ID of the user-assigned identity (A.2); required unless the previous key is `true` |
+| `Csag.WorkloadIdentity:AzureSql:Google:TenantId` | `Csag.WorkloadIdentity__AzureSql__Google__TenantId` | Directory (tenant) ID (B.2) |
+| `Csag.WorkloadIdentity:AzureSql:Google:ClientId` | `Csag.WorkloadIdentity__AzureSql__Google__ClientId` | Application (client) ID of the app registration, or client ID of the user-assigned identity, holding the federated credential (B.2) |
+| `Csag.WorkloadIdentity:AzureSql:Google:ServiceAccountEmail` | `Csag.WorkloadIdentity__AzureSql__Google__ServiceAccountEmail` | Service account email (B.1.2) |
+| `Csag.WorkloadIdentity:BlobStorage:...` | `Csag.WorkloadIdentity__BlobStorage__...` | The same keys, for Blob Storage |
+| `Csag.WorkloadIdentity:RefreshAheadWindow` | `Csag.WorkloadIdentity__RefreshAheadWindow` | Optional; how long before expiry a token is refreshed. Default `00:05:00`, must be positive |
 | `Csag.WorkloadIdentity:EnableBackgroundRefresh` | `Csag.WorkloadIdentity__EnableBackgroundRefresh` | Optional; default `true` |
 
-The first three are required; the application refuses to start if any of them is missing. In `appsettings.json`:
+At least one resource section is required, and a configured resource must carry the complete settings of the provider it selects; the application refuses to start otherwise and names the missing value. For the identity configuration A, using the system-assigned identity for both resources:
 
 ```json
 {
   "Csag.WorkloadIdentity": {
-    "TenantId": "<tenant-id>",
-    "ClientId": "<client-id>",
-    "Google": {
-      "ServiceAccountEmail": "<name>@<project-id>.iam.gserviceaccount.com"
+    "AzureSql": {
+      "Provider": "ManagedIdentity",
+      "ManagedIdentity": { "UseSystemAssignedIdentity": true }
+    },
+    "BlobStorage": {
+      "Provider": "ManagedIdentity",
+      "ManagedIdentity": { "UseSystemAssignedIdentity": true }
     }
   },
   "ConnectionStrings": {
@@ -173,17 +289,55 @@ The first three are required; the application refuses to start if any of them is
 }
 ```
 
-The connection string is your own application's setting (the Demo reads `ConnectionStrings:DefaultConnection`). It names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.WorkloadIdentity/README.md) shows how to register the library and attach the token to a `SqlConnection`.
+For a user-assigned identity replace the `ManagedIdentity` section with `{ "ClientId": "<client-id>" }`. For the identity configuration B, with Azure SQL only:
 
-## 5. Cloud Run
+```json
+{
+  "Csag.WorkloadIdentity": {
+    "AzureSql": {
+      "Provider": "Google",
+      "Google": {
+        "TenantId": "<tenant-id>",
+        "ClientId": "<client-id>",
+        "ServiceAccountEmail": "<name>@<project-id>.iam.gserviceaccount.com"
+      }
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+  }
+}
+```
 
-Deploy the application with the service account from step 1 as its runtime identity, so that ADC resolves to that account, and supply the settings as environment variables. A YAML file keeps the connection string's commas out of the command line:
+The connection string and the storage account's blob endpoint are your own application's settings (the Demo reads `ConnectionStrings:DefaultConnection`). The connection string names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.WorkloadIdentity/README.md) shows how to register the library, attach the token to a `SqlConnection` and build a `BlobServiceClient` on the library's `TokenCredential` adapter.
+
+## E. Deploy
+
+### E.1 Azure App Service
+
+The identity from section A is already attached to the App Service, so only the settings remain. Supply them as application settings, which App Service exposes to the process as environment variables: in the portal under **Settings** > **Environment variables** > **App settings**, or with the Azure CLI:
+
+```shell
+az webapp config appsettings set --resource-group <resource-group> --name <app-name> --settings \
+  Csag.WorkloadIdentity__AzureSql__Provider=ManagedIdentity \
+  Csag.WorkloadIdentity__AzureSql__ManagedIdentity__UseSystemAssignedIdentity=true \
+  Csag.WorkloadIdentity__BlobStorage__Provider=ManagedIdentity \
+  Csag.WorkloadIdentity__BlobStorage__ManagedIdentity__UseSystemAssignedIdentity=true \
+  "ConnectionStrings__DefaultConnection=Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+```
+
+The same keys work for Container Apps, Functions and virtual machines, in whatever way each supplies environment variables.
+
+### E.2 Google Cloud Run
+
+Deploy the application with the service account from B.1 as its runtime identity, so that ADC resolves to that account, and supply the settings as environment variables. A YAML file keeps the connection string's commas out of the command line:
 
 ```yaml
 # env.yaml
-Csag.WorkloadIdentity__TenantId: "<tenant-id>"
-Csag.WorkloadIdentity__ClientId: "<client-id>"
-Csag.WorkloadIdentity__Google__ServiceAccountEmail: "<name>@<project-id>.iam.gserviceaccount.com"
+Csag.WorkloadIdentity__AzureSql__Provider: "Google"
+Csag.WorkloadIdentity__AzureSql__Google__TenantId: "<tenant-id>"
+Csag.WorkloadIdentity__AzureSql__Google__ClientId: "<client-id>"
+Csag.WorkloadIdentity__AzureSql__Google__ServiceAccountEmail: "<name>@<project-id>.iam.gserviceaccount.com"
 ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
 ```
 
@@ -198,9 +352,36 @@ gcloud run deploy <service> \
 
 To change only the identity of an existing service, use `gcloud run services update <service> --service-account <name>@<project-id>.iam.gserviceaccount.com`. In the console, the runtime service account is under the service's **Security** tab and the variables under **Variables & Secrets**.
 
-At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.WorkloadIdentity/README.md) maps the usual messages to their cause.
+At startup the application validates its configuration. On the first access to a resource (or right away, with the background refresh on) it requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and uses the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.WorkloadIdentity/README.md) maps the usual messages to their cause.
+
+## Security best practice: disable SQL authentication
+
+Once every application and every person reaches the database with a Microsoft Entra identity, password-based access is only an attack surface. Remove it in two steps.
+
+1. **Audit and remove password-based users.** Connected as the Microsoft Entra admin, list the principals that authenticate with a password, that is, contained users with their own password (`DATABASE`) and users mapped to server logins (`INSTANCE`), and drop the ones no longer needed:
+
+   ```sql
+   SELECT name, type_desc, authentication_type_desc
+   FROM sys.database_principals
+   WHERE authentication_type_desc IN ('DATABASE', 'INSTANCE');
+
+   DROP USER [<username>];
+   ```
+
+   Do this only after confirming that everything that used those users has moved to the passwordless connection.
+
+2. **Enable Microsoft Entra-only authentication on the server.** This turns off SQL authentication for the whole logical server, including the server admin login; existing SQL logins are kept but can no longer connect. In the portal open the server's **Microsoft Entra ID** page under **Settings** and check **Support only Microsoft Entra authentication for this server**, or run:
+
+   ```shell
+   az sql server ad-only-auth enable --resource-group <resource-group> --name <server>
+   ```
+
+   A Microsoft Entra admin must be set first (C.1.1), and the person enabling the feature needs a highly privileged role on the server such as Owner, Contributor or SQL Security Manager. Microsoft describes the feature and its consequences under [Microsoft Entra-only authentication](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-only-authentication).
+
+The counterpart for Blob Storage is disallowing Shared Key authorization on the storage account, described at the end of C.2.
 
 ## References
 
 - Google Cloud: [Create short-lived credentials for a service account](https://cloud.google.com/iam/docs/create-short-lived-credentials-direct), [Service account credentials and self-impersonation](https://cloud.google.com/iam/docs/service-account-creds), [IAM roles and permissions](https://cloud.google.com/iam/docs/roles-permissions/iam), [`generateIdToken`](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/generateIdToken), [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials), [Cloud Run service identity](https://cloud.google.com/run/docs/configuring/services/service-identity), [Cloud Run environment variables](https://cloud.google.com/run/docs/configuring/services/environment-variables)
-- Microsoft: [Workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation), [Configure an app to trust an external identity provider](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust), [Microsoft Entra authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview), [Azure SQL with a service principal](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal), [Database-level roles](https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/database-level-roles), [`SqlConnection.AccessToken`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.sqlclient.sqlconnection.accesstoken)
+- Microsoft Entra ID: [Managed identities for Azure resources](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview), [Manage user-assigned managed identities](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-manage-user-assigned-managed-identities), [Workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation), [Configure an app to trust an external identity provider](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust), [Configure a user-assigned managed identity to trust an external identity provider](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust-user-assigned-managed-identity)
+- Azure: [Managed identities in App Service](https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity), [Connect App Service to Azure SQL without secrets](https://learn.microsoft.com/en-us/azure/app-service/tutorial-connect-msi-sql-database), [App Service settings](https://learn.microsoft.com/en-us/azure/app-service/configure-common), [Microsoft Entra authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview), [Azure SQL with a service principal](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal), [Microsoft Entra-only authentication](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-only-authentication), [Database-level roles](https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/database-level-roles), [Authorize Blob access with Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-access-azure-active-directory), [Assign an Azure role for blob data](https://learn.microsoft.com/en-us/azure/storage/blobs/assign-azure-role-data-access), [Built-in roles for Storage](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage), [`SqlConnection.AccessToken`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.sqlclient.sqlconnection.accesstoken), [`BlobServiceClient`](https://learn.microsoft.com/en-us/dotnet/api/azure.storage.blobs.blobserviceclient)
