@@ -113,6 +113,32 @@
         }
 
         /// <summary>
+        /// Verifies that a caller cancelling while the client is being created does not fail the other callers.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_FirstCallerCancels_When_ClientCreationCompletes_Then_SecondCallerGetsToken()
+        {
+            // Arrange
+            var creation = new TaskCompletionSource<IAMCredentialsClient>();
+            this.clientFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(creation.Task);
+            this.SetupGeneratedToken(IdToken);
+            using var firstCaller = new CancellationTokenSource();
+
+            // Act
+            var first = this.provider.GetIdTokenAsync(firstCaller.Token);
+            var second = this.provider.GetIdTokenAsync(CancellationToken.None);
+            await firstCaller.CancelAsync();
+            await Should.ThrowAsync<TaskCanceledException>(() => first);
+            creation.SetResult(this.client);
+            var result = await second;
+
+            // Assert
+            result.ShouldBe(IdToken);
+            await this.clientFactory.Received(1).CreateAsync(Arg.Any<CancellationToken>());
+        }
+
+        /// <summary>
         /// Verifies that an empty token in the response is rejected.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>

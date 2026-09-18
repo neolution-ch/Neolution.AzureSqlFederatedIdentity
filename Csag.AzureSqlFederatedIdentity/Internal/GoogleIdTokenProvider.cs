@@ -105,22 +105,32 @@
 
         /// <summary>
         /// Returns the shared IAM Credentials client, starting its creation on first use or after a failed attempt.
+        /// The creation is shared by every caller, so it is not tied to any caller's cancellation token; each caller
+        /// only stops waiting for it when its own token is cancelled.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The client.</returns>
         private Task<IAMCredentialsClient> GetClientAsync(CancellationToken cancellationToken)
         {
+            Task<IAMCredentialsClient> creation;
             lock (this.clientLock)
             {
-                var creation = this.clientCreation;
-                if (creation is null || creation.IsFaulted || creation.IsCanceled)
-                {
-                    creation = this.CreateClientAsync(cancellationToken);
-                    this.clientCreation = creation;
-                }
-
-                return creation;
+                var current = this.clientCreation;
+                creation = current is null || current.IsFaulted ? this.StartClientCreationAsync() : current;
             }
+
+            return creation.WaitAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Starts a new creation of the client and records it as the shared one. Must be called under <see cref="clientLock"/>.
+        /// </summary>
+        /// <returns>The pending creation.</returns>
+        private Task<IAMCredentialsClient> StartClientCreationAsync()
+        {
+            var creation = this.CreateClientAsync(CancellationToken.None);
+            this.clientCreation = creation;
+            return creation;
         }
 
         /// <summary>
