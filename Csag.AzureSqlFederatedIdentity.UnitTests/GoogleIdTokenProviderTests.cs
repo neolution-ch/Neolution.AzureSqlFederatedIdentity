@@ -113,6 +113,29 @@
         }
 
         /// <summary>
+        /// Verifies that a cancelled client creation is not retained and the next call creates the client again.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_CancelledClientCreation_When_GetIdTokenAsyncAgain_Then_RetriesCreation()
+        {
+            // Arrange
+            this.clientFactory.CreateAsync(Arg.Any<CancellationToken>())
+                .Returns(
+                    _ => Task.FromCanceled<IAMCredentialsClient>(new CancellationToken(canceled: true)),
+                    _ => Task.FromResult(this.client));
+            this.SetupGeneratedToken(IdToken);
+
+            // Act
+            await Should.ThrowAsync<TaskCanceledException>(() => this.provider.GetIdTokenAsync(CancellationToken.None));
+            var result = await this.provider.GetIdTokenAsync(CancellationToken.None);
+
+            // Assert
+            result.ShouldBe(IdToken);
+            await this.clientFactory.Received(2).CreateAsync(Arg.Any<CancellationToken>());
+        }
+
+        /// <summary>
         /// Verifies that a caller cancelling while the client is being created does not fail the other callers.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
