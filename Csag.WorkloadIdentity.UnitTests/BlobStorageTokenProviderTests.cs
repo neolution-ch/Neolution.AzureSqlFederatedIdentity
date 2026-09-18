@@ -8,9 +8,9 @@
     using Shouldly;
 
     /// <summary>
-    /// Unit tests for the <see cref="AzureSqlTokenProvider"/> class, which wraps a <see cref="ResourceTokenProvider"/>.
+    /// Unit tests for the <see cref="BlobStorageTokenProvider"/> class, which wraps a <see cref="ResourceTokenProvider"/>.
     /// </summary>
-    public class AzureSqlTokenProviderTests
+    public class BlobStorageTokenProviderTests
     {
         /// <summary>
         /// The instant at which every test starts.
@@ -23,22 +23,22 @@
         private readonly IWorkloadIdentityTokenExchanger exchanger = Substitute.For<IWorkloadIdentityTokenExchanger>();
 
         /// <summary>
-        /// Verifies that the string overload returns the token value obtained for Azure SQL.
+        /// Verifies that the string overload returns the token value obtained for Blob Storage.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
-        public async Task Given_Token_When_GetAzureSqlAccessTokenAsync_Then_ReturnsTokenValue()
+        public async Task Given_Token_When_GetBlobStorageAccessTokenAsync_Then_ReturnsTokenValue()
         {
             // Arrange
-            this.SetupExchange(new AccessToken("sql-token", StartTime.AddHours(1)));
+            this.SetupExchange(new AccessToken("blob-token", StartTime.AddHours(1)));
             using var provider = this.CreateProvider();
 
             // Act
-            var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            var result = await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
 
             // Assert
-            result.ShouldBe("sql-token");
-            await this.exchanger.Received(1).ExchangeAsync(TokenScope.AzureSql, Arg.Any<CancellationToken>());
+            result.ShouldBe("blob-token");
+            await this.exchanger.Received(1).ExchangeAsync(TokenScope.BlobStorage, Arg.Any<CancellationToken>());
         }
 
         /// <summary>
@@ -50,14 +50,14 @@
         {
             // Arrange
             var expiresOn = StartTime.AddHours(1);
-            this.SetupExchange(new AccessToken("sql-token", expiresOn));
+            this.SetupExchange(new AccessToken("blob-token", expiresOn));
             using var provider = this.CreateProvider();
 
             // Act
             var result = await provider.GetAccessTokenAsync(CancellationToken.None);
 
             // Assert
-            result.Token.ShouldBe("sql-token");
+            result.Token.ShouldBe("blob-token");
             result.ExpiresOn.ShouldBe(expiresOn);
         }
 
@@ -72,16 +72,16 @@
             var secondExpiry = StartTime.AddHours(2);
             this.SetupExchange(new AccessToken("first", StartTime.AddHours(1)), new AccessToken("second", secondExpiry));
             using var provider = this.CreateProvider();
-            await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
 
             // Act
             var expiresOn = await ((ITokenRefresher)provider).RefreshAsync(CancellationToken.None);
-            var result = await provider.GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            var result = await provider.GetBlobStorageAccessTokenAsync(CancellationToken.None);
 
             // Assert
             expiresOn.ShouldBe(secondExpiry);
             result.ShouldBe("second");
-            await this.exchanger.Received(2).ExchangeAsync(TokenScope.AzureSql, Arg.Any<CancellationToken>());
+            await this.exchanger.Received(2).ExchangeAsync(TokenScope.BlobStorage, Arg.Any<CancellationToken>());
         }
 
         /// <summary>
@@ -90,7 +90,7 @@
         /// <param name="tokens">The tokens to hand out.</param>
         private void SetupExchange(params AccessToken[] tokens)
         {
-            this.exchanger.ExchangeAsync(TokenScope.AzureSql, Arg.Any<CancellationToken>())
+            this.exchanger.ExchangeAsync(TokenScope.BlobStorage, Arg.Any<CancellationToken>())
                 .Returns(tokens[0], tokens.Skip(1).ToArray());
         }
 
@@ -98,10 +98,10 @@
         /// Creates the provider under test.
         /// </summary>
         /// <returns>The provider.</returns>
-        private AzureSqlTokenProvider CreateProvider()
+        private BlobStorageTokenProvider CreateProvider()
         {
-            var tokenProvider = new ResourceTokenProvider(TokenScope.AzureSql, this.exchanger, TimeSpan.FromMinutes(5), new FakeTimeProvider(StartTime), NullLogger<ResourceTokenProvider>.Instance);
-            return new AzureSqlTokenProvider(tokenProvider);
+            var tokenProvider = new ResourceTokenProvider(TokenScope.BlobStorage, this.exchanger, TimeSpan.FromMinutes(5), new FakeTimeProvider(StartTime), NullLogger<ResourceTokenProvider>.Instance);
+            return new BlobStorageTokenProvider(tokenProvider);
         }
     }
 }

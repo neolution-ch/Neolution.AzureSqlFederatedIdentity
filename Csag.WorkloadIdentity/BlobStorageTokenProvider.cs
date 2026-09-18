@@ -5,12 +5,12 @@
     using Csag.WorkloadIdentity.Internal;
 
     /// <summary>
-    /// Provides access tokens for Azure SQL. The current token is held in memory and reused until it enters the
-    /// configured refresh-ahead window; callers that find no usable token share a single token request. Registered
-    /// by <see cref="WorkloadIdentityServiceCollectionExtensions"/> and resolvable only while the
-    /// <see cref="Options.WorkloadIdentityOptions.AzureSql"/> section is configured.
+    /// Provides access tokens for Azure Blob Storage. The current token is held in memory and reused until it enters
+    /// the configured refresh-ahead window; callers that find no usable token share a single token request.
+    /// Registered by <see cref="WorkloadIdentityServiceCollectionExtensions"/> and resolvable only while the
+    /// <see cref="Options.WorkloadIdentityOptions.BlobStorage"/> section is configured.
     /// </summary>
-    public sealed class AzureSqlTokenProvider : IAzureSqlTokenProvider, ITokenRefresher, IDisposable
+    public sealed class BlobStorageTokenProvider : IBlobStorageTokenProvider, ITokenRefresher, IDisposable
     {
         /// <summary>
         /// Holds the token and performs the requests.
@@ -18,10 +18,10 @@
         private readonly ResourceTokenProvider tokenProvider;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureSqlTokenProvider"/> class.
+        /// Initializes a new instance of the <see cref="BlobStorageTokenProvider"/> class.
         /// </summary>
-        /// <param name="tokenProvider">The holder of the Azure SQL token.</param>
-        internal AzureSqlTokenProvider(ResourceTokenProvider tokenProvider)
+        /// <param name="tokenProvider">The holder of the Blob Storage token.</param>
+        internal BlobStorageTokenProvider(ResourceTokenProvider tokenProvider)
         {
             ArgumentNullException.ThrowIfNull(tokenProvider);
 
@@ -35,7 +35,7 @@
         }
 
         /// <inheritdoc />
-        public async Task<string> GetAzureSqlAccessTokenAsync(CancellationToken cancellationToken)
+        public async Task<string> GetBlobStorageAccessTokenAsync(CancellationToken cancellationToken)
         {
             var token = await this.tokenProvider.GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
             return token.Token;
