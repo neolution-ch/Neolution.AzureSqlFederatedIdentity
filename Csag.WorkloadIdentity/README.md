@@ -23,7 +23,7 @@ Either way the result is a Microsoft Entra ID access token for the resource's sc
 - Holds the current access token of each resource in memory and hands it out until it enters the configured refresh-ahead window. Callers that find no usable token share a single token request instead of each running their own.
 - Background refresh (on by default): a hosted service refreshes each resource's token ahead of its expiry, so requests are served from a valid token without waiting for a token request. Failed requests are retried with exponential backoff.
 - Options are validated when the host starts, so a missing or invalid value fails fast with a message that names it.
-- Every service is registered with `TryAdd`, so you can replace any part of the pipeline, including a token provider, by registering your own implementation first.
+- The token pipeline (the resource token providers, the exchangers, the Google ID token provider and their factories) is registered with `TryAdd`, so you can replace any of them by registering your own implementation first. The background refresh hosted service is always added; turn it off with `EnableBackgroundRefresh` instead.
 - Targets `net8.0` and `net10.0`.
 
 ## Prerequisites
@@ -88,7 +88,7 @@ The options reference below shows the other two overloads: binding a given `ICon
 
 ### 4. Use the token
 
-Resolve `IAzureSqlTokenProvider` (namespace `Csag.WorkloadIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection: while the held token is valid the call returns it without any network round trip.
+Resolve `IAzureSqlTokenProvider` (namespace `Csag.WorkloadIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection: until the held token enters the refresh-ahead window the call returns it without any network round trip; inside the window (reachable only when background refresh is off or has been failing) the first caller requests a new token and concurrent callers wait for that one request.
 
 ```csharp
 using Csag.WorkloadIdentity.Abstractions;
@@ -237,7 +237,7 @@ public sealed class DocumentStore(BlobServiceClient blobServiceClient)
 }
 ```
 
-`IBlobStorageTokenProvider.GetBlobStorageAccessTokenAsync` returns the raw token string for code that calls the Blob REST API directly and sets the `Authorization: Bearer` header itself. `WorkloadIdentityTokenCredential` accepts any of the library's providers (`IAccessTokenProvider`), so the same adapter can present the Azure SQL provider to an SDK client that authenticates with a `TokenCredential`.
+`IBlobStorageTokenProvider.GetBlobStorageAccessTokenAsync` returns the raw token string for code that calls the Blob REST API directly and sets the `Authorization: Bearer` header itself. `WorkloadIdentityTokenCredential` accepts any of the library's providers (`IAccessTokenProvider`), but each provider is bound to one resource and the adapter ignores the scopes an SDK client asks for: wrap the provider that matches the client, `IBlobStorageTokenProvider` for `BlobServiceClient`, never the Azure SQL provider, whose token carries the SQL audience.
 
 ## Options reference
 
