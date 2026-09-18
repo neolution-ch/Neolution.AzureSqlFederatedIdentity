@@ -30,6 +30,11 @@ app.MapGet("/test", async ([FromServices] IAppDbContextFactory dbFactory, [FromS
         var rows = await context.TestTable.OrderBy(e => e.Id).ToListAsync(cancellationToken);
         return Results.Ok(new { count, rows, });
     }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        // The client went away; there is nobody to answer and nothing worth logging.
+        throw;
+    }
     catch (Exception ex)
     {
         // The endpoint is unauthenticated, so token-exchange and SQL failures go to the log, not the response.

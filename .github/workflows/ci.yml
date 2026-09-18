@@ -99,6 +99,7 @@ jobs:
             -e Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail=placeholder@example.invalid \
             csag-demo
           curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:8080/
+          test "$(docker exec csag-demo id -u)" != "0"
           docker stop csag-demo
 
       - name: Demo container logs
