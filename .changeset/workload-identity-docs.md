@@ -1,0 +1,5 @@
+---
+"@neolution-ch/csag-workload-identity": patch
+---
+
+Document the resource-first model. The package README explains how each resource obtains its token from a managed identity or through Google workload identity federation, and carries two complete quickstarts (Azure SQL from Google Cloud Run; Azure SQL and Blob Storage from Azure App Service with a system- or user-assigned managed identity, including a `BlobServiceClient` built on `WorkloadIdentityTokenCredential`), a reference of every configuration key for both providers, and a migration section from `Neolution.AzureSqlFederatedIdentity` with the before/after configuration and the `AddWorkloadIdentity` rename. The cloud setup guide is restructured around the choice between an Azure managed identity and Google Cloud to Azure federation, describes both holders of the federated credential (app registration or user-assigned managed identity), the Azure SQL and Blob Storage grants, the new configuration keys, and Microsoft Entra-only authentication.

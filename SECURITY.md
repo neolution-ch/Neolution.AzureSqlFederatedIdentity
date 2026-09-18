@@ -1,6 +1,6 @@
 # Security policy
 
-Csag.WorkloadIdentity handles credentials: it obtains Google ID tokens and Microsoft Entra ID access tokens and keeps the current access token in memory. We take reports about it seriously.
+Csag.WorkloadIdentity handles credentials: it obtains Microsoft Entra ID access tokens for Azure SQL and Azure Blob Storage, from a managed identity or by exchanging Google ID tokens, and keeps the current access tokens in memory. We take reports about it seriously.
 
 ## Supported versions
 
