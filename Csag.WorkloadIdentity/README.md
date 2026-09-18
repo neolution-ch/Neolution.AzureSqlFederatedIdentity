@@ -221,7 +221,7 @@ Azure SDK clients are thread-safe and meant to be shared, so a singleton is the 
 
 ### 4. Use the tokens
 
-Azure SQL works exactly as in quickstart A: `IAzureSqlTokenProvider` and `SqlConnection.AccessToken`, with plain ADO.NET or the EF Core factory. For Blob Storage inject the `BlobServiceClient`; the SDK asks the credential for a token on every request and the adapter answers from the held token:
+Azure SQL works exactly as in quickstart A: `IAzureSqlTokenProvider` and `SqlConnection.AccessToken`, with plain ADO.NET or the EF Core factory. For Blob Storage inject the `BlobServiceClient`; the SDK obtains a token through the credential as needed (its bearer-token policy caches the token and asks again only when it is missing or near expiry), and the adapter serves each of those requests from the provider's held token:
 
 ```csharp
 using Azure.Storage.Blobs;
