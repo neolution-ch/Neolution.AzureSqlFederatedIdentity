@@ -11,7 +11,7 @@
     <PackageVersion Include="Neolution.CodeAnalysis.TestsRuleset" Version="3.3.0-beta.2" />
 
     <!-- Library -->
-    <PackageVersion Include="Azure.Core" Version="1.53.0" />
+    <PackageVersion Include="Azure.Core" Version="1.62.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Google.Cloud.Iam.Credentials.V1" Version="2.5.0" />
     <PackageVersion Include="Grpc.Core.Api" Version="2.83.0" />
