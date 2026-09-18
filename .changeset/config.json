@@ -5,7 +5,7 @@
     { "repo": "neolution-ch/Neolution.AzureSqlFederatedIdentity" }
   ],
   "commit": false,
-  "fixed": [["@neolution-ch/csag-azure-sql-federated-identity"]],
+  "fixed": [["@neolution-ch/csag-workload-identity"]],
   "linked": [],
   "access": "restricted",
   "baseBranch": "main",

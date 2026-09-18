@@ -1,4 +1,4 @@
-# Context for Csag.AzureSqlFederatedIdentity.Demo/Dockerfile, which builds from the repository root.
+# Context for Csag.WorkloadIdentity.Demo/Dockerfile, which builds from the repository root.
 **/bin/
 **/obj/
 **/TestResults/
@@ -17,4 +17,4 @@ package-lock.json
 **/*.user
 **/*.md
 # The library's csproj packs its README into the NuGet package.
-!Csag.AzureSqlFederatedIdentity/README.md
+!Csag.WorkloadIdentity/README.md
