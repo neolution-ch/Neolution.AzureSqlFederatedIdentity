@@ -1,18 +1,15 @@
 ﻿namespace Csag.WorkloadIdentity.Abstractions
 {
-    using System.Threading;
-    using System.Threading.Tasks;
-
     /// <summary>
-    /// Provides a method to obtain an Azure SQL access token.
+    /// Provides access tokens for Azure SQL.
     /// </summary>
-    public interface IAzureSqlTokenProvider
+    public interface IAzureSqlTokenProvider : IAccessTokenProvider
     {
         /// <summary>
-        /// Gets an Azure SQL access token asynchronously.
+        /// Gets a valid access token for Azure SQL, to be assigned to <c>SqlConnection.AccessToken</c>.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
-        /// <returns>The Azure SQL access token as a string.</returns>
+        /// <returns>The access token as a string.</returns>
         Task<string> GetAzureSqlAccessTokenAsync(CancellationToken cancellationToken);
     }
 }

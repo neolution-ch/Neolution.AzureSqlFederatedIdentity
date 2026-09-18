@@ -17,6 +17,7 @@ How it works:
 ## Features
 
 - Exchanges a Google-signed ID token for a Microsoft Entra ID access token for Azure SQL; there are no secrets to store or rotate.
+- Also serves Azure Blob Storage (`IBlobStorageTokenProvider`), and an application that runs on Azure can obtain the tokens from its managed identity instead (`"Provider": "ManagedIdentity"`). `WorkloadIdentityTokenCredential` presents a provider to Azure SDK clients as a `TokenCredential`.
 - Holds the current access token in memory and hands it out until it enters the configured refresh-ahead window. Callers that find no usable token share a single exchange instead of each running their own.
 - Background refresh (on by default): a hosted service exchanges a fresh token whenever the held one enters the refresh-ahead window, so requests are served from a valid token without waiting for an exchange. Failed exchanges are retried with exponential backoff.
 - Options are validated when the host starts, so a missing or invalid value fails fast with a message that names it.
@@ -45,15 +46,18 @@ The library returns a token string and does not depend on `Microsoft.Data.SqlCli
 
 ### 2. Configure
 
-The options bind from the `Csag.WorkloadIdentity` section of the configuration:
+The options bind from the `Csag.WorkloadIdentity` section of the configuration. Each resource has its own section that selects the identity provider and carries that provider's settings; this is Azure SQL over Google federation:
 
 ```json
 {
   "Csag.WorkloadIdentity": {
-    "TenantId": "<entra-tenant-id>",
-    "ClientId": "<app-registration-client-id>",
-    "Google": {
-      "ServiceAccountEmail": "<name>@<project-id>.iam.gserviceaccount.com"
+    "AzureSql": {
+      "Provider": "Google",
+      "Google": {
+        "TenantId": "<entra-tenant-id>",
+        "ClientId": "<app-registration-client-id>",
+        "ServiceAccountEmail": "<name>@<project-id>.iam.gserviceaccount.com"
+      }
     },
     "RefreshAheadWindow": "00:05:00",
     "EnableBackgroundRefresh": true
@@ -66,13 +70,16 @@ The options bind from the `Csag.WorkloadIdentity` section of the configuration:
 
 | Key | Required | Default | Description |
 |---|---|---|---|
-| `TenantId` | yes | – | Directory (tenant) ID of the Microsoft Entra tenant. |
-| `ClientId` | yes | – | Application (client) ID of the app registration that holds the federated credential. |
-| `Google:ServiceAccountEmail` | yes | – | The Google service account the ID token is minted for. The federated credential names this account's unique ID as its subject. |
-| `RefreshAheadWindow` | no | `00:05:00` | How long before the access token expires it is treated as due for refresh. Must be positive. |
-| `EnableBackgroundRefresh` | no | `true` | Whether a hosted service keeps the token refreshed ahead of its expiry. |
+| `AzureSql:Provider` | no | `ManagedIdentity` | `Google` for workload identity federation as shown here. The default, `ManagedIdentity`, expects an `AzureSql:ManagedIdentity` section instead of `AzureSql:Google`. |
+| `AzureSql:Google:TenantId` | yes | – | Directory (tenant) ID of the Microsoft Entra tenant. |
+| `AzureSql:Google:ClientId` | yes | – | Application (client) ID of the app registration that holds the federated credential (or the client ID of a user-assigned managed identity holding it). |
+| `AzureSql:Google:ServiceAccountEmail` | yes | – | The Google service account the ID token is minted for. The federated credential names this account's unique ID as its subject. |
+| `RefreshAheadWindow` | no | `00:05:00` | How long before an access token expires it is treated as due for refresh. Applies to every resource. Must be positive. |
+| `EnableBackgroundRefresh` | no | `true` | Whether a hosted service keeps the tokens refreshed ahead of their expiry. |
 
-Environment variables follow the usual .NET mapping, with `__` as the section separator: `Csag.WorkloadIdentity__TenantId`, `Csag.WorkloadIdentity__ClientId`, `Csag.WorkloadIdentity__Google__ServiceAccountEmail`, and so on.
+A `BlobStorage` section of the same shape configures `IBlobStorageTokenProvider`. With `"Provider": "ManagedIdentity"` a section carries `"ManagedIdentity": { "UseSystemAssignedIdentity": true }` or `"ManagedIdentity": { "ClientId": "<user-assigned-client-id>" }` instead of `Google`. At least one resource section is required.
+
+Environment variables follow the usual .NET mapping, with `__` as the section separator: `Csag.WorkloadIdentity__AzureSql__Provider`, `Csag.WorkloadIdentity__AzureSql__Google__TenantId`, `Csag.WorkloadIdentity__AzureSql__Google__ClientId`, `Csag.WorkloadIdentity__AzureSql__Google__ServiceAccountEmail`, and so on.
 
 The connection string deliberately carries no credentials; see the notes below.
 
@@ -84,7 +91,7 @@ using Csag.WorkloadIdentity;
 var builder = WebApplication.CreateBuilder(args);
 
 // Binds the "Csag.WorkloadIdentity" section of the host configuration.
-builder.Services.AddAzureSqlFederatedIdentity();
+builder.Services.AddWorkloadIdentity();
 
 var app = builder.Build();
 app.Run();
@@ -97,20 +104,27 @@ using Csag.WorkloadIdentity;
 using Csag.WorkloadIdentity.Options;
 
 // Binds the "Csag.WorkloadIdentity" section of the given configuration.
-services.AddAzureSqlFederatedIdentity(configuration);
+services.AddWorkloadIdentity(configuration);
 
-// Sets the options in code; the section name is available as AzureSqlFederatedIdentityOptions.ConfigurationSectionName.
-services.AddAzureSqlFederatedIdentity(options =>
+// Sets the options in code; the section name is available as WorkloadIdentityOptions.ConfigurationSectionName.
+services.AddWorkloadIdentity(options =>
 {
-    options.TenantId = "<entra-tenant-id>";
-    options.ClientId = "<app-registration-client-id>";
-    options.Google = new GoogleOptions { ServiceAccountEmail = "<name>@<project-id>.iam.gserviceaccount.com" };
+    options.AzureSql = new WorkloadIdentityResourceOptions
+    {
+        Provider = WorkloadIdentityProvider.Google,
+        Google = new GoogleOptions
+        {
+            TenantId = "<entra-tenant-id>",
+            ClientId = "<app-registration-client-id>",
+            ServiceAccountEmail = "<name>@<project-id>.iam.gserviceaccount.com",
+        },
+    };
     options.RefreshAheadWindow = TimeSpan.FromMinutes(10);
     options.EnableBackgroundRefresh = true;
 });
 ```
 
-`GoogleOptions` and `AzureSqlFederatedIdentityOptions` live in `Csag.WorkloadIdentity.Options`. The options are validated when the host starts: a missing `TenantId`, `ClientId` or `Google:ServiceAccountEmail`, or a non-positive `RefreshAheadWindow`, throws an `OptionsValidationException` that names the offending value. Calling `AddAzureSqlFederatedIdentity` more than once is harmless.
+`WorkloadIdentityOptions`, `WorkloadIdentityResourceOptions`, `GoogleOptions` and `ManagedIdentityOptions` live in `Csag.WorkloadIdentity.Options`. The options are validated when the host starts: no resource section at all, a missing value in a configured resource's provider section, or a non-positive `RefreshAheadWindow` throws an `OptionsValidationException` that names every offending value, for example `AzureSql:Google:ServiceAccountEmail must be provided.` Calling `AddWorkloadIdentity` more than once is harmless. Both token providers are always registered; resolving the provider of a resource whose section is absent throws an `InvalidOperationException` that names the missing section.
 
 ### 4. Use the token
 

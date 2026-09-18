@@ -1,19 +1,17 @@
 ﻿namespace Csag.WorkloadIdentity.Internal
 {
     using Csag.WorkloadIdentity.Abstractions;
-    using Csag.WorkloadIdentity.Options;
     using Google.Cloud.Iam.Credentials.V1;
     using Grpc.Core;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
 
     /// <summary>
-    /// Provides Google-signed ID tokens for use as client assertions in Azure SQL token exchange.
+    /// Provides Google-signed ID tokens for use as client assertions in workload identity federation.
     /// </summary>
     internal class GoogleIdTokenProvider : IGoogleIdTokenProvider
     {
         /// <summary>
-        /// The audience Azure AD expects in an ID token presented as a client assertion for workload identity federation.
+        /// The audience Microsoft Entra ID expects in an ID token presented as a client assertion for workload identity federation.
         /// </summary>
         private const string AzureAdTokenExchangeAudience = "api://AzureADTokenExchange";
 
@@ -21,11 +19,6 @@
         /// The logger instance for this class.
         /// </summary>
         private readonly ILogger<GoogleIdTokenProvider> logger;
-
-        /// <summary>
-        /// The Google-specific options.
-        /// </summary>
-        private readonly GoogleOptions options;
 
         /// <summary>
         /// Creates the IAM Credentials client.
@@ -46,29 +39,33 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="GoogleIdTokenProvider"/> class.
         /// </summary>
-        /// <param name="options">The federated identity options.</param>
         /// <param name="clientFactory">Creates the IAM Credentials client.</param>
         /// <param name="logger">The logger instance.</param>
-        public GoogleIdTokenProvider(IOptions<AzureSqlFederatedIdentityOptions> options, IIamCredentialsClientFactory clientFactory, ILogger<GoogleIdTokenProvider> logger)
+        public GoogleIdTokenProvider(IIamCredentialsClientFactory clientFactory, ILogger<GoogleIdTokenProvider> logger)
         {
-            ArgumentNullException.ThrowIfNull(options);
-            ArgumentNullException.ThrowIfNull(options.Value.Google);
-
-            this.options = options.Value.Google;
             this.clientFactory = clientFactory;
             this.logger = logger;
         }
 
+        /// <inheritdoc />
+        public Task<string> GetIdTokenAsync(string serviceAccountEmail, CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(serviceAccountEmail);
+
+            return this.GenerateIdTokenAsync(serviceAccountEmail, cancellationToken);
+        }
+
         /// <summary>
-        /// Gets a Google-signed ID token for the configured service account and the Azure AD token exchange audience.
+        /// Asks the IAM Credentials API for an ID token for the service account with the Microsoft Entra ID token
+        /// exchange audience.
         /// </summary>
+        /// <param name="serviceAccountEmail">The email of the service account the token is minted for.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The Google-signed ID token.</returns>
-        public async Task<string> GetIdTokenAsync(CancellationToken cancellationToken)
+        private async Task<string> GenerateIdTokenAsync(string serviceAccountEmail, CancellationToken cancellationToken)
         {
             var client = await this.GetClientAsync(cancellationToken).ConfigureAwait(false);
 
-            var serviceAccountEmail = this.options.ServiceAccountEmail;
             this.logger.LogTrace("Requesting ID token for service account {ServiceAccountEmail}", serviceAccountEmail);
 
             var request = new GenerateIdTokenRequest

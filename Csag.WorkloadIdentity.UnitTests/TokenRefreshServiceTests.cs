@@ -4,6 +4,7 @@
     using Csag.WorkloadIdentity.Internal;
     using Csag.WorkloadIdentity.Internal.Services;
     using Csag.WorkloadIdentity.Options;
+    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging.Abstractions;
     using Microsoft.Extensions.Options;
     using Microsoft.Extensions.Time.Testing;
@@ -12,9 +13,9 @@
     using Shouldly;
 
     /// <summary>
-    /// Unit tests for the <see cref="AzureSqlTokenRefreshService"/> class.
+    /// Unit tests for the <see cref="TokenRefreshService"/> class.
     /// </summary>
-    public class AzureSqlTokenRefreshServiceTests
+    public class TokenRefreshServiceTests
     {
         /// <summary>
         /// The instant at which every test starts.
@@ -27,7 +28,7 @@
         private static readonly TimeSpan RefreshAheadWindow = TimeSpan.FromMinutes(5);
 
         /// <summary>
-        /// The lifetime of the tokens the refresher hands out unless a test says otherwise.
+        /// The lifetime of the tokens the refreshers hand out unless a test says otherwise.
         /// </summary>
         private static readonly TimeSpan TokenLifetime = TimeSpan.FromHours(1);
 
@@ -52,19 +53,24 @@
         private readonly TimerCountingTimeProvider timeProvider = new(StartTime);
 
         /// <summary>
-        /// The substituted token provider, which also supports forced refresh.
+        /// The substituted Azure SQL token provider, which also supports forced refresh.
         /// </summary>
-        private readonly IAzureSqlTokenProvider tokenProvider = Substitute.For<IAzureSqlTokenProvider, IAzureSqlTokenRefresher>();
+        private readonly IAzureSqlTokenProvider azureSqlTokenProvider = Substitute.For<IAzureSqlTokenProvider, ITokenRefresher>();
 
         /// <summary>
-        /// The number of refreshes the service has requested so far.
+        /// The substituted Blob Storage token provider, which also supports forced refresh.
         /// </summary>
-        private int refreshCount;
+        private readonly IBlobStorageTokenProvider blobStorageTokenProvider = Substitute.For<IBlobStorageTokenProvider, ITokenRefresher>();
 
         /// <summary>
-        /// Gets the number of refreshes the service has requested so far.
+        /// Counts the refreshes the service requested from the Azure SQL provider.
         /// </summary>
-        private int RefreshCount => Volatile.Read(ref this.refreshCount);
+        private readonly RefreshCounter azureSqlRefreshes = new();
+
+        /// <summary>
+        /// Counts the refreshes the service requested from the Blob Storage provider.
+        /// </summary>
+        private readonly RefreshCounter blobStorageRefreshes = new();
 
         /// <summary>
         /// Verifies that the service refreshes once at start and again exactly when the refresh-ahead point is reached.
@@ -74,7 +80,7 @@
         public async Task Given_RefreshedToken_When_RefreshAheadPointIsReached_Then_RefreshesAgain()
         {
             // Arrange
-            this.SetupRefresh(_ => this.timeProvider.GetUtcNow() + TokenLifetime);
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + TokenLifetime);
             using var service = this.CreateService();
             await service.StartAsync(CancellationToken.None);
             await this.WaitForScheduledRefreshAsync(1);
@@ -82,13 +88,13 @@
             // Act
             this.timeProvider.Advance(TokenLifetime - RefreshAheadWindow - TimeSpan.FromSeconds(1));
             await Task.Delay(SettleTime);
-            var refreshesBeforeRefreshPoint = this.RefreshCount;
+            var refreshesBeforeRefreshPoint = this.azureSqlRefreshes.Count;
             this.timeProvider.Advance(TimeSpan.FromSeconds(1));
-            await WaitUntilAsync(() => this.RefreshCount >= 2);
+            await WaitUntilAsync(() => this.azureSqlRefreshes.Count >= 2);
 
             // Assert
             refreshesBeforeRefreshPoint.ShouldBe(1);
-            this.RefreshCount.ShouldBe(2);
+            this.azureSqlRefreshes.Count.ShouldBe(2);
             await service.StopAsync(CancellationToken.None);
         }
 
@@ -102,7 +108,7 @@
         {
             // Arrange
             var lifetime = TimeSpan.FromMinutes(2);
-            this.SetupRefresh(_ => this.timeProvider.GetUtcNow() + lifetime);
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + lifetime);
             using var service = this.CreateService();
             await service.StartAsync(CancellationToken.None);
             await this.WaitForScheduledRefreshAsync(1);
@@ -110,13 +116,13 @@
             // Act
             this.timeProvider.Advance(TimeSpan.FromSeconds(59));
             await Task.Delay(SettleTime);
-            var refreshesBeforeHalfLifetime = this.RefreshCount;
+            var refreshesBeforeHalfLifetime = this.azureSqlRefreshes.Count;
             this.timeProvider.Advance(TimeSpan.FromSeconds(1));
-            await WaitUntilAsync(() => this.RefreshCount >= 2);
+            await WaitUntilAsync(() => this.azureSqlRefreshes.Count >= 2);
 
             // Assert
             refreshesBeforeHalfLifetime.ShouldBe(1);
-            this.RefreshCount.ShouldBe(2);
+            this.azureSqlRefreshes.Count.ShouldBe(2);
             await service.StopAsync(CancellationToken.None);
         }
 
@@ -128,7 +134,9 @@
         public async Task Given_FailingRefresh_When_RetryDelayElapses_Then_RetriesRefresh()
         {
             // Arrange
-            this.SetupRefresh(
+            SetupRefresh(
+                this.azureSqlTokenProvider,
+                this.azureSqlRefreshes,
                 _ => throw new InvalidOperationException("refresh failed"),
                 _ => this.timeProvider.GetUtcNow() + TokenLifetime);
             using var service = this.CreateService();
@@ -138,13 +146,13 @@
             // Act
             this.timeProvider.Advance(InitialRetryDelay - TimeSpan.FromSeconds(1));
             await Task.Delay(SettleTime);
-            var refreshesBeforeRetryPoint = this.RefreshCount;
+            var refreshesBeforeRetryPoint = this.azureSqlRefreshes.Count;
             this.timeProvider.Advance(TimeSpan.FromSeconds(1));
-            await WaitUntilAsync(() => this.RefreshCount >= 2);
+            await WaitUntilAsync(() => this.azureSqlRefreshes.Count >= 2);
 
             // Assert
             refreshesBeforeRetryPoint.ShouldBe(1);
-            this.RefreshCount.ShouldBe(2);
+            this.azureSqlRefreshes.Count.ShouldBe(2);
             service.ExecuteTask.ShouldNotBeNull().IsCompleted.ShouldBeFalse();
             await service.StopAsync(CancellationToken.None);
         }
@@ -157,7 +165,7 @@
         public async Task Given_RunningService_When_Stopped_Then_CompletesWithoutError()
         {
             // Arrange
-            this.SetupRefresh(_ => this.timeProvider.GetUtcNow() + TokenLifetime);
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + TokenLifetime);
             using var service = this.CreateService();
             await service.StartAsync(CancellationToken.None);
             await this.WaitForScheduledRefreshAsync(1);
@@ -167,7 +175,7 @@
 
             // Assert
             service.ExecuteTask.ShouldNotBeNull().Status.ShouldBe(TaskStatus.RanToCompletion);
-            this.RefreshCount.ShouldBe(1);
+            this.azureSqlRefreshes.Count.ShouldBe(1);
         }
 
         /// <summary>
@@ -178,7 +186,7 @@
         public async Task Given_BackgroundRefreshDisabled_When_Started_Then_DoesNotRefresh()
         {
             // Arrange
-            this.SetupRefresh(_ => this.timeProvider.GetUtcNow() + TokenLifetime);
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + TokenLifetime);
             using var service = this.CreateService(enableBackgroundRefresh: false);
 
             // Act
@@ -187,11 +195,12 @@
 
             // Assert
             service.ExecuteTask.Status.ShouldBe(TaskStatus.RanToCompletion);
-            this.RefreshCount.ShouldBe(0);
+            this.azureSqlRefreshes.Count.ShouldBe(0);
         }
 
         /// <summary>
-        /// Verifies that a token provider without forced-refresh support leaves the service idle instead of failing.
+        /// Verifies that a consumer-substituted token provider without forced-refresh support is skipped instead of
+        /// failing the service.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         [Fact]
@@ -199,7 +208,7 @@
         {
             // Arrange
             var plainProvider = Substitute.For<IAzureSqlTokenProvider>();
-            using var service = this.CreateService(plainProvider);
+            using var service = this.CreateService(azureSqlProvider: plainProvider);
 
             // Act
             await service.StartAsync(CancellationToken.None);
@@ -208,6 +217,59 @@
             // Assert
             service.ExecuteTask.Status.ShouldBe(TaskStatus.RanToCompletion);
             await plainProvider.DidNotReceiveWithAnyArgs().GetAzureSqlAccessTokenAsync(CancellationToken.None);
+            await plainProvider.DidNotReceiveWithAnyArgs().GetAccessTokenAsync(CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Verifies that only the providers of configured resources are resolved: the Blob Storage provider is not
+        /// registered here, and the service must not ask for it.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_OnlyAzureSqlConfigured_When_Started_Then_RefreshesAzureSqlWithoutResolvingBlobStorage()
+        {
+            // Arrange
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + TokenLifetime);
+            using var service = this.CreateService();
+
+            // Act
+            await service.StartAsync(CancellationToken.None);
+            await this.WaitForScheduledRefreshAsync(1);
+
+            // Assert
+            service.ExecuteTask.ShouldNotBeNull().IsFaulted.ShouldBeFalse();
+            this.azureSqlRefreshes.Count.ShouldBe(1);
+            await service.StopAsync(CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Verifies that two configured resources are refreshed by independent loops, each at its own refresh-ahead point.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_TwoConfiguredResources_When_TheirRefreshPointsAreReached_Then_RefreshesEachIndependently()
+        {
+            // Arrange
+            var blobStorageLifetime = TimeSpan.FromMinutes(40);
+            SetupRefresh(this.azureSqlTokenProvider, this.azureSqlRefreshes, _ => this.timeProvider.GetUtcNow() + TokenLifetime);
+            SetupRefresh(this.blobStorageTokenProvider, this.blobStorageRefreshes, _ => this.timeProvider.GetUtcNow() + blobStorageLifetime);
+            using var service = this.CreateService(configureBlobStorage: true);
+            await service.StartAsync(CancellationToken.None);
+            await this.WaitForScheduledRefreshAsync(2);
+
+            // Act
+            this.timeProvider.Advance(blobStorageLifetime - RefreshAheadWindow);
+            await WaitUntilAsync(() => this.blobStorageRefreshes.Count >= 2);
+            await Task.Delay(SettleTime);
+            var azureSqlRefreshesAfterBlobStorageRefresh = this.azureSqlRefreshes.Count;
+            this.timeProvider.Advance(TokenLifetime - blobStorageLifetime);
+            await WaitUntilAsync(() => this.azureSqlRefreshes.Count >= 2);
+
+            // Assert
+            azureSqlRefreshesAfterBlobStorageRefresh.ShouldBe(1);
+            this.azureSqlRefreshes.Count.ShouldBe(2);
+            this.blobStorageRefreshes.Count.ShouldBe(2);
+            await service.StopAsync(CancellationToken.None);
         }
 
         /// <summary>
@@ -225,26 +287,29 @@
         }
 
         /// <summary>
-        /// Configures the refresher to produce the given results in order, repeating the last one, and counts every request.
+        /// Configures a provider's refresher to produce the given results in order, repeating the last one, and
+        /// counts every request.
         /// </summary>
+        /// <param name="tokenProvider">The substituted provider, which also implements <see cref="ITokenRefresher"/>.</param>
+        /// <param name="counter">Receives every request.</param>
         /// <param name="results">The results to produce; a result may throw to simulate a failed refresh.</param>
-        private void SetupRefresh(params Func<CallInfo, DateTimeOffset>[] results)
+        private static void SetupRefresh(IAccessTokenProvider tokenProvider, RefreshCounter counter, params Func<CallInfo, DateTimeOffset>[] results)
         {
             var counted = results
                 .Select(result => new Func<CallInfo, DateTimeOffset>(call =>
                 {
-                    Interlocked.Increment(ref this.refreshCount);
+                    counter.Increment();
                     return result(call);
                 }))
                 .ToArray();
 
-            ((IAzureSqlTokenRefresher)this.tokenProvider).RefreshAsync(Arg.Any<CancellationToken>())
+            ((ITokenRefresher)tokenProvider).RefreshAsync(Arg.Any<CancellationToken>())
                 .Returns(counted[0], counted.Skip(1).ToArray());
         }
 
         /// <summary>
-        /// Waits until the service has scheduled its next refresh (or retry) on the fake clock for the given time,
-        /// so that advancing the clock afterwards is guaranteed to reach that schedule.
+        /// Waits until the service has scheduled the given number of refreshes (or retries) on the fake clock, so
+        /// that advancing the clock afterwards is guaranteed to reach those schedules.
         /// </summary>
         /// <param name="scheduledRefreshes">The number of schedules to wait for, counted from the start of the service.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
@@ -255,20 +320,54 @@
         }
 
         /// <summary>
-        /// Creates the service under test.
+        /// Creates the service under test with the Azure SQL resource configured and its provider registered.
         /// </summary>
-        /// <param name="provider">The token provider to hand the service, or <see langword="null"/> for the refreshable substitute.</param>
         /// <param name="enableBackgroundRefresh">Whether background refresh is enabled in the options.</param>
+        /// <param name="configureBlobStorage">Whether the Blob Storage resource is configured and its provider registered too.</param>
+        /// <param name="azureSqlProvider">The Azure SQL provider to register, or <see langword="null"/> for the refreshable substitute.</param>
         /// <returns>The service.</returns>
-        private AzureSqlTokenRefreshService CreateService(IAzureSqlTokenProvider? provider = null, bool enableBackgroundRefresh = true)
+        private TokenRefreshService CreateService(bool enableBackgroundRefresh = true, bool configureBlobStorage = false, IAzureSqlTokenProvider? azureSqlProvider = null)
         {
-            var options = Options.Create(new AzureSqlFederatedIdentityOptions
+            var services = new ServiceCollection();
+            services.AddSingleton(azureSqlProvider ?? this.azureSqlTokenProvider);
+            if (configureBlobStorage)
             {
+                services.AddSingleton(this.blobStorageTokenProvider);
+            }
+
+            var options = Options.Create(new WorkloadIdentityOptions
+            {
+                AzureSql = new WorkloadIdentityResourceOptions(),
+                BlobStorage = configureBlobStorage ? new WorkloadIdentityResourceOptions() : null,
                 RefreshAheadWindow = RefreshAheadWindow,
                 EnableBackgroundRefresh = enableBackgroundRefresh,
             });
 
-            return new AzureSqlTokenRefreshService(provider ?? this.tokenProvider, options, this.timeProvider, NullLogger<AzureSqlTokenRefreshService>.Instance);
+            return new TokenRefreshService(services.BuildServiceProvider(), options, this.timeProvider, NullLogger<TokenRefreshService>.Instance);
+        }
+
+        /// <summary>
+        /// A thread-safe counter of the refreshes requested from one provider.
+        /// </summary>
+        private sealed class RefreshCounter
+        {
+            /// <summary>
+            /// The number of refreshes so far.
+            /// </summary>
+            private int count;
+
+            /// <summary>
+            /// Gets the number of refreshes so far.
+            /// </summary>
+            public int Count => Volatile.Read(ref this.count);
+
+            /// <summary>
+            /// Records one refresh.
+            /// </summary>
+            public void Increment()
+            {
+                Interlocked.Increment(ref this.count);
+            }
         }
 
         /// <summary>
