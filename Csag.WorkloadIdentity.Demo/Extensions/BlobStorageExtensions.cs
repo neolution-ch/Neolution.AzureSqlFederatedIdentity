@@ -21,12 +21,24 @@
                 return services;
             }
 
+            // The test file is addressed as "<container>/<blob>"; the blob name may itself contain slashes. Checked
+            // here so that a malformed value stops the app at startup instead of failing every /test.
+            var separator = filePath.IndexOf('/', StringComparison.Ordinal);
+            if (separator <= 0 || separator == filePath.Length - 1)
+            {
+                throw new InvalidOperationException($"BlobStorageTestFile:FilePath must have the form '<container>/<blob>', but is '{filePath}'.");
+            }
+
+            var containerName = filePath[..separator];
+            var blobName = filePath[(separator + 1)..];
+
             // The library's TokenCredential adapter serves the client from the held Blob Storage token and reports
             // that token's real expiry, so the Azure SDK asks for a new one only when the provider refreshes it.
             services.AddSingleton(serviceProvider => new BlobServiceClient(
                 new Uri(endpoint),
                 new WorkloadIdentityTokenCredential(serviceProvider.GetRequiredService<IBlobStorageTokenProvider>())));
-            services.AddSingleton<IBlobStorageService>(serviceProvider => new BlobStorageService(serviceProvider.GetRequiredService<BlobServiceClient>(), filePath));
+            services.AddSingleton<IBlobStorageService>(serviceProvider => new BlobStorageService(
+                serviceProvider.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(containerName).GetBlobClient(blobName)));
 
             return services;
         }
