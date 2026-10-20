@@ -10,7 +10,7 @@
     /// by <see cref="WorkloadIdentityServiceCollectionExtensions"/> and resolvable only while the
     /// <see cref="Options.WorkloadIdentityOptions.AzureSql"/> section is configured.
     /// </summary>
-    public sealed class AzureSqlTokenProvider : IAzureSqlTokenProvider, ITokenRefresher, IDisposable
+    internal sealed class AzureSqlTokenProvider : IAzureSqlTokenProvider, ITokenRefresher, IDisposable
     {
         /// <summary>
         /// Holds the token and performs the requests.
@@ -21,7 +21,7 @@
         /// Initializes a new instance of the <see cref="AzureSqlTokenProvider"/> class.
         /// </summary>
         /// <param name="tokenProvider">The holder of the Azure SQL token.</param>
-        internal AzureSqlTokenProvider(ResourceTokenProvider tokenProvider)
+        public AzureSqlTokenProvider(ResourceTokenProvider tokenProvider)
         {
             ArgumentNullException.ThrowIfNull(tokenProvider);
 

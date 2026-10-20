@@ -5,7 +5,7 @@
     /// requested from Microsoft Entra ID for the resource and is named after the
     /// <see cref="Options.WorkloadIdentityOptions"/> property that configures the resource.
     /// </summary>
-    public enum TokenScope
+    internal enum TokenScope
     {
         /// <summary>
         /// Azure SQL Database.

@@ -27,8 +27,9 @@
         /// <summary>
         /// Gets or sets how long before an access token expires it is treated as due for refresh. A call that finds
         /// the current token inside this window obtains a fresh one, and the background refresh service refreshes
-        /// each token this long before it expires. Applies to every resource. Must be positive; defaults to five
-        /// minutes.
+        /// each token this long before it expires. Applies to every resource. Must be positive and at most five
+        /// minutes, because the credentials return their cached token until five minutes before expiry; defaults to
+        /// five minutes.
         /// </summary>
         public TimeSpan RefreshAheadWindow { get; set; } = TimeSpan.FromMinutes(5);
 

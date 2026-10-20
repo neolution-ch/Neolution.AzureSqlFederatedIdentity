@@ -5,30 +5,43 @@
     /// <summary>
     /// Validates <see cref="WorkloadIdentityOptions"/>: at least one resource must be configured, every configured
     /// resource must carry the complete settings of the provider it selects, and the refresh-ahead window must be
-    /// positive. Every failure names the configuration path of the offending value, relative to the options section.
+    /// positive and at most five minutes. Every failure is reported, each naming the configuration path of the
+    /// offending value relative to the options section.
     /// </summary>
     internal sealed class WorkloadIdentityOptionsValidator : IValidateOptions<WorkloadIdentityOptions>
     {
+        /// <summary>
+        /// The longest refresh-ahead window that still obtains a fresh token. The credentials cache their tokens in
+        /// MSAL, which keeps returning the cached token until five minutes before it expires, so an earlier refresh
+        /// gets the same token back.
+        /// </summary>
+        private static readonly TimeSpan MaximumRefreshAheadWindow = TimeSpan.FromMinutes(5);
+
         /// <inheritdoc />
         public ValidateOptionsResult Validate(string? name, WorkloadIdentityOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
 
-            var failures = new List<string>();
+            var builder = new ValidateOptionsResultBuilder();
             if (options.AzureSql is null && options.BlobStorage is null)
             {
-                failures.Add($"At least one resource section ({nameof(options.AzureSql)} or {nameof(options.BlobStorage)}) must be configured.");
+                builder.AddError($"At least one resource section ({nameof(options.AzureSql)} or {nameof(options.BlobStorage)}) must be configured.");
             }
 
-            ValidateResource(nameof(options.AzureSql), options.AzureSql, failures);
-            ValidateResource(nameof(options.BlobStorage), options.BlobStorage, failures);
+            ValidateResource(nameof(options.AzureSql), options.AzureSql, builder);
+            ValidateResource(nameof(options.BlobStorage), options.BlobStorage, builder);
 
             if (options.RefreshAheadWindow <= TimeSpan.Zero)
             {
-                failures.Add($"{nameof(options.RefreshAheadWindow)} must be a positive duration.");
+                builder.AddError($"{nameof(options.RefreshAheadWindow)} must be a positive duration.");
             }
 
-            return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+            if (options.RefreshAheadWindow > MaximumRefreshAheadWindow)
+            {
+                builder.AddError($"{nameof(options.RefreshAheadWindow)} must not exceed five minutes: the credentials return their cached token until five minutes before expiry, so a longer window cannot refresh earlier.");
+            }
+
+            return builder.Build();
         }
 
         /// <summary>
@@ -36,8 +49,8 @@
         /// </summary>
         /// <param name="path">The configuration path of the section.</param>
         /// <param name="resource">The section, or <see langword="null"/> when the resource is not configured.</param>
-        /// <param name="failures">Receives a message for every invalid value.</param>
-        private static void ValidateResource(string path, WorkloadIdentityResourceOptions? resource, List<string> failures)
+        /// <param name="builder">Receives a message for every invalid value.</param>
+        private static void ValidateResource(string path, WorkloadIdentityResourceOptions? resource, ValidateOptionsResultBuilder builder)
         {
             if (resource is null)
             {
@@ -47,13 +60,13 @@
             switch (resource.Provider)
             {
                 case WorkloadIdentityProvider.ManagedIdentity:
-                    ValidateManagedIdentity(path, resource.ManagedIdentity, failures);
+                    ValidateManagedIdentity(path, resource.ManagedIdentity, builder);
                     break;
                 case WorkloadIdentityProvider.Google:
-                    ValidateGoogle(path, resource.Google, failures);
+                    ValidateGoogle(path, resource.Google, builder);
                     break;
                 default:
-                    failures.Add($"{path}:{nameof(resource.Provider)} must be {nameof(WorkloadIdentityProvider.ManagedIdentity)} or {nameof(WorkloadIdentityProvider.Google)}.");
+                    builder.AddError($"{path}:{nameof(resource.Provider)} must be {nameof(WorkloadIdentityProvider.ManagedIdentity)} or {nameof(WorkloadIdentityProvider.Google)}.");
                     break;
             }
         }
@@ -63,19 +76,19 @@
         /// </summary>
         /// <param name="path">The configuration path of the resource section.</param>
         /// <param name="managedIdentity">The managed identity section, or <see langword="null"/> when it is absent.</param>
-        /// <param name="failures">Receives a message for every invalid value.</param>
-        private static void ValidateManagedIdentity(string path, ManagedIdentityOptions? managedIdentity, List<string> failures)
+        /// <param name="builder">Receives a message for every invalid value.</param>
+        private static void ValidateManagedIdentity(string path, ManagedIdentityOptions? managedIdentity, ValidateOptionsResultBuilder builder)
         {
             var sectionPath = $"{path}:{nameof(WorkloadIdentityResourceOptions.ManagedIdentity)}";
             if (managedIdentity is null)
             {
-                failures.Add($"{sectionPath} section must be provided when {path}:{nameof(WorkloadIdentityResourceOptions.Provider)} is {nameof(WorkloadIdentityProvider.ManagedIdentity)}.");
+                builder.AddError($"{sectionPath} section must be provided when {path}:{nameof(WorkloadIdentityResourceOptions.Provider)} is {nameof(WorkloadIdentityProvider.ManagedIdentity)}.");
                 return;
             }
 
             if (!managedIdentity.UseSystemAssignedIdentity && string.IsNullOrWhiteSpace(managedIdentity.ClientId))
             {
-                failures.Add($"{sectionPath}:{nameof(managedIdentity.ClientId)} must be provided unless {sectionPath}:{nameof(managedIdentity.UseSystemAssignedIdentity)} is true.");
+                builder.AddError($"{sectionPath}:{nameof(managedIdentity.ClientId)} must be provided unless {sectionPath}:{nameof(managedIdentity.UseSystemAssignedIdentity)} is true.");
             }
         }
 
@@ -84,19 +97,19 @@
         /// </summary>
         /// <param name="path">The configuration path of the resource section.</param>
         /// <param name="google">The Google section, or <see langword="null"/> when it is absent.</param>
-        /// <param name="failures">Receives a message for every invalid value.</param>
-        private static void ValidateGoogle(string path, GoogleOptions? google, List<string> failures)
+        /// <param name="builder">Receives a message for every invalid value.</param>
+        private static void ValidateGoogle(string path, GoogleOptions? google, ValidateOptionsResultBuilder builder)
         {
             var sectionPath = $"{path}:{nameof(WorkloadIdentityResourceOptions.Google)}";
             if (google is null)
             {
-                failures.Add($"{sectionPath} section must be provided when {path}:{nameof(WorkloadIdentityResourceOptions.Provider)} is {nameof(WorkloadIdentityProvider.Google)}.");
+                builder.AddError($"{sectionPath} section must be provided when {path}:{nameof(WorkloadIdentityResourceOptions.Provider)} is {nameof(WorkloadIdentityProvider.Google)}.");
                 return;
             }
 
-            RequireValue(sectionPath, nameof(google.TenantId), google.TenantId, failures);
-            RequireValue(sectionPath, nameof(google.ClientId), google.ClientId, failures);
-            RequireValue(sectionPath, nameof(google.ServiceAccountEmail), google.ServiceAccountEmail, failures);
+            RequireValue(sectionPath, nameof(google.TenantId), google.TenantId, builder);
+            RequireValue(sectionPath, nameof(google.ClientId), google.ClientId, builder);
+            RequireValue(sectionPath, nameof(google.ServiceAccountEmail), google.ServiceAccountEmail, builder);
         }
 
         /// <summary>
@@ -105,12 +118,12 @@
         /// <param name="sectionPath">The configuration path of the section holding the value.</param>
         /// <param name="key">The key of the value within the section.</param>
         /// <param name="value">The value.</param>
-        /// <param name="failures">Receives the message when the value is blank.</param>
-        private static void RequireValue(string sectionPath, string key, string? value, List<string> failures)
+        /// <param name="builder">Receives the message when the value is blank.</param>
+        private static void RequireValue(string sectionPath, string key, string? value, ValidateOptionsResultBuilder builder)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                failures.Add($"{sectionPath}:{key} must be provided.");
+                builder.AddError($"{sectionPath}:{key} must be provided.");
             }
         }
     }

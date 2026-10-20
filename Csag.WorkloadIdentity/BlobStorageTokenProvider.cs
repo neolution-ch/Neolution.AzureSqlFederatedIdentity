@@ -10,7 +10,7 @@
     /// Registered by <see cref="WorkloadIdentityServiceCollectionExtensions"/> and resolvable only while the
     /// <see cref="Options.WorkloadIdentityOptions.BlobStorage"/> section is configured.
     /// </summary>
-    public sealed class BlobStorageTokenProvider : IBlobStorageTokenProvider, ITokenRefresher, IDisposable
+    internal sealed class BlobStorageTokenProvider : IBlobStorageTokenProvider, ITokenRefresher, IDisposable
     {
         /// <summary>
         /// Holds the token and performs the requests.
@@ -21,7 +21,7 @@
         /// Initializes a new instance of the <see cref="BlobStorageTokenProvider"/> class.
         /// </summary>
         /// <param name="tokenProvider">The holder of the Blob Storage token.</param>
-        internal BlobStorageTokenProvider(ResourceTokenProvider tokenProvider)
+        public BlobStorageTokenProvider(ResourceTokenProvider tokenProvider)
         {
             ArgumentNullException.ThrowIfNull(tokenProvider);
 

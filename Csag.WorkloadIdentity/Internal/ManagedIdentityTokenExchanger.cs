@@ -1,5 +1,6 @@
 ﻿namespace Csag.WorkloadIdentity.Internal
 {
+    using System.Collections.Concurrent;
     using Azure.Core;
     using Csag.WorkloadIdentity.Options;
     using Microsoft.Extensions.Logging;
@@ -26,15 +27,11 @@
         private readonly ILogger<ManagedIdentityTokenExchanger> logger;
 
         /// <summary>
-        /// Guards <see cref="credentials"/>.
-        /// </summary>
-        private readonly object credentialsLock = new();
-
-        /// <summary>
         /// One credential per managed identity. A credential caches the tokens it obtains, so resources that share an
-        /// identity share its credential.
+        /// identity share its credential. Callers racing on a new identity may each create a credential and all but
+        /// one is discarded, which is harmless because creating a credential makes no network call.
         /// </summary>
-        private readonly Dictionary<ManagedIdentityKey, TokenCredential> credentials = new();
+        private readonly ConcurrentDictionary<ManagedIdentityKey, TokenCredential> credentials = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ManagedIdentityTokenExchanger"/> class.
@@ -81,16 +78,7 @@
         {
             // A client ID set alongside UseSystemAssignedIdentity is ignored, so it must not tell the identities apart.
             var key = new ManagedIdentityKey(managedIdentity.UseSystemAssignedIdentity, managedIdentity.UseSystemAssignedIdentity ? null : managedIdentity.ClientId);
-            lock (this.credentialsLock)
-            {
-                if (!this.credentials.TryGetValue(key, out var credential))
-                {
-                    credential = this.credentialFactory.Create(managedIdentity);
-                    this.credentials.Add(key, credential);
-                }
-
-                return credential;
-            }
+            return this.credentials.GetOrAdd(key, _ => this.credentialFactory.Create(managedIdentity));
         }
 
         /// <summary>

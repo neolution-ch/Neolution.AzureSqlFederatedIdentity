@@ -270,6 +270,50 @@
         }
 
         /// <summary>
+        /// Verifies that a refresh-ahead window longer than five minutes fails validation.
+        /// </summary>
+        /// <param name="seconds">The window length in seconds.</param>
+        [Theory]
+        [InlineData(301)]
+        [InlineData(600)]
+        public void Given_RefreshAheadWindowAboveFiveMinutes_When_Validate_Then_Fails(int seconds)
+        {
+            // Arrange
+            var options = new WorkloadIdentityOptions
+            {
+                AzureSql = CreateGoogleResource(),
+                RefreshAheadWindow = TimeSpan.FromSeconds(seconds),
+            };
+
+            // Act
+            var result = this.validator.Validate(null, options);
+
+            // Assert
+            result.Failed.ShouldBeTrue();
+            result.FailureMessage.ShouldNotBeNull().ShouldContain(nameof(WorkloadIdentityOptions.RefreshAheadWindow));
+        }
+
+        /// <summary>
+        /// Verifies that a refresh-ahead window of exactly five minutes passes validation.
+        /// </summary>
+        [Fact]
+        public void Given_RefreshAheadWindowOfFiveMinutes_When_Validate_Then_Succeeds()
+        {
+            // Arrange
+            var options = new WorkloadIdentityOptions
+            {
+                AzureSql = CreateGoogleResource(),
+                RefreshAheadWindow = TimeSpan.FromMinutes(5),
+            };
+
+            // Act
+            var result = this.validator.Validate(null, options);
+
+            // Assert
+            result.Succeeded.ShouldBeTrue();
+        }
+
+        /// <summary>
         /// Verifies that every invalid value is reported at once, so that one restart fixes them all.
         /// </summary>
         [Fact]

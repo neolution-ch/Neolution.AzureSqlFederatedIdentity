@@ -4,7 +4,7 @@
     /// Names the OAuth 2.0 scope that is requested from Microsoft Entra ID for a <see cref="TokenScope"/> member.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field, AllowMultiple = false)]
-    public sealed class TokenScopeMetadataAttribute : Attribute
+    internal sealed class TokenScopeMetadataAttribute : Attribute
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TokenScopeMetadataAttribute"/> class.

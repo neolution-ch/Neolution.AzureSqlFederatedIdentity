@@ -12,13 +12,16 @@
         /// <summary>
         /// Verifies that each scope resolves to the OAuth 2.0 scope named by its metadata.
         /// </summary>
-        /// <param name="scope">The token scope.</param>
+        /// <param name="scopeName">The name of the token scope; the enum is internal, so a public theory cannot take it directly.</param>
         /// <param name="expected">The OAuth 2.0 scope expected for it.</param>
         [Theory]
-        [InlineData(TokenScope.AzureSql, "https://database.windows.net/.default")]
-        [InlineData(TokenScope.BlobStorage, "https://storage.azure.com/.default")]
-        public void Given_Scope_When_GetIdentifier_Then_ReturnsScopeFromMetadata(TokenScope scope, string expected)
+        [InlineData(nameof(TokenScope.AzureSql), "https://database.windows.net/.default")]
+        [InlineData(nameof(TokenScope.BlobStorage), "https://storage.azure.com/.default")]
+        public void Given_Scope_When_GetIdentifier_Then_ReturnsScopeFromMetadata(string scopeName, string expected)
         {
+            // Arrange
+            var scope = Enum.Parse<TokenScope>(scopeName);
+
             // Act
             var result = scope.GetIdentifier();
 

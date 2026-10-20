@@ -1,5 +1,6 @@
 ﻿namespace Csag.WorkloadIdentity.Internal
 {
+    using System.Collections.Concurrent;
     using Azure.Core;
     using Csag.WorkloadIdentity.Abstractions;
     using Csag.WorkloadIdentity.Options;
@@ -34,16 +35,12 @@
         private readonly ILogger<GoogleFederatedTokenExchanger> logger;
 
         /// <summary>
-        /// Guards <see cref="credentials"/>.
-        /// </summary>
-        private readonly object credentialsLock = new();
-
-        /// <summary>
         /// One credential per federated identity. A credential caches the tokens it obtains, so resources that share
         /// an identity share its credential. The service account is part of the identity because the credential's
-        /// assertion callback is bound to it.
+        /// assertion callback is bound to it. Callers racing on a new identity may each create a credential and all
+        /// but one is discarded, which is harmless because creating a credential makes no network call.
         /// </summary>
-        private readonly Dictionary<FederatedIdentity, TokenCredential> credentials = new();
+        private readonly ConcurrentDictionary<FederatedIdentity, TokenCredential> credentials = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GoogleFederatedTokenExchanger"/> class.
@@ -122,20 +119,13 @@
         /// <returns>The credential.</returns>
         private TokenCredential GetOrCreateCredential(FederatedIdentity identity)
         {
-            lock (this.credentialsLock)
-            {
-                if (!this.credentials.TryGetValue(identity, out var credential))
-                {
-                    // The credential passes the callback the cancellation token of the token request it is serving.
-                    credential = this.credentialFactory.Create(
-                        identity.TenantId,
-                        identity.ClientId,
-                        cancellationToken => this.googleIdTokenProvider.GetIdTokenAsync(identity.ServiceAccountEmail, cancellationToken));
-                    this.credentials.Add(identity, credential);
-                }
-
-                return credential;
-            }
+            // The credential passes the callback the cancellation token of the token request it is serving.
+            return this.credentials.GetOrAdd(
+                identity,
+                key => this.credentialFactory.Create(
+                    key.TenantId,
+                    key.ClientId,
+                    cancellationToken => this.googleIdTokenProvider.GetIdTokenAsync(key.ServiceAccountEmail, cancellationToken)));
         }
 
         /// <summary>
