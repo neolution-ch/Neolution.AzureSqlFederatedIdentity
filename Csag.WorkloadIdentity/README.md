@@ -88,7 +88,66 @@ The options reference below shows the other two overloads: binding a given `ICon
 
 ### 4. Use the token
 
-Resolve `IAzureSqlTokenProvider` (namespace `Csag.WorkloadIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection: until the held token enters the refresh-ahead window the call returns it without any network round trip; inside the window (reachable only when background refresh is off or has been failing) the first caller requests a new token and concurrent callers wait for that one request.
+`SqlClient` can obtain the token in two ways: a `SqlAuthenticationProvider` serves every connection the application opens, including those that EF Core or other libraries open, and `SqlConnection.AccessToken` serves a single connection you open yourself. Either way, asking `IAzureSqlTokenProvider` for the token is cheap: until the held token enters the refresh-ahead window the call returns it without any network round trip; inside the window (reachable only when background refresh is off or has been failing) the first caller requests a new token and concurrent callers wait for that one request.
+
+#### With a `SqlAuthenticationProvider`
+
+Install a provider for `ActiveDirectoryDefault` at startup. `SqlClient` then asks it for the token whenever it opens a connection whose connection string says `Authentication=Active Directory Default`, so EF Core contexts and connections that other libraries open, such as a SQL Server distributed cache, need no further code. The repository's Demo project uses this approach.
+
+```csharp
+using Csag.WorkloadIdentity.Abstractions;
+using Microsoft.Data.SqlClient;
+
+public sealed class FederatedSqlAuthenticationProvider(IAzureSqlTokenProvider tokenProvider) : SqlAuthenticationProvider
+{
+    public override bool IsSupported(SqlAuthenticationMethod authenticationMethod)
+        => authenticationMethod == SqlAuthenticationMethod.ActiveDirectoryDefault;
+
+    public override async Task<SqlAuthenticationToken> AcquireTokenAsync(SqlAuthenticationParameters parameters)
+    {
+        // ConnectionTimeout bounds the token request; 0 means no limit.
+        using var timeout = new CancellationTokenSource();
+        if (parameters.ConnectionTimeout > 0)
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(parameters.ConnectionTimeout));
+        }
+
+        var accessToken = await tokenProvider.GetAccessTokenAsync(timeout.Token);
+        return new SqlAuthenticationToken(accessToken.Token, accessToken.ExpiresOn);
+    }
+}
+```
+
+Install the provider once the host is built, before anything opens a connection. With EF Core, register a pooled context factory plus a scoped context, and inject `AppDbContext` (your `DbContext`) where you need it, or `IDbContextFactory<AppDbContext>` where you manage the context's lifetime yourself:
+
+```csharp
+using Csag.WorkloadIdentity;
+using Csag.WorkloadIdentity.Abstractions;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddWorkloadIdentity();
+builder.Services.AddPooledDbContextFactory<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AzureSql")));
+builder.Services.AddScoped(serviceProvider => serviceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
+
+var app = builder.Build();
+
+if (!SqlAuthenticationProvider.SetProvider(
+        SqlAuthenticationMethod.ActiveDirectoryDefault,
+        new FederatedSqlAuthenticationProvider(app.Services.GetRequiredService<IAzureSqlTokenProvider>())))
+{
+    throw new InvalidOperationException("Could not install the federated SQL authentication provider.");
+}
+
+app.Run();
+```
+
+#### With `SqlConnection.AccessToken`
+
+To authenticate a connection you open yourself, resolve `IAzureSqlTokenProvider` (namespace `Csag.WorkloadIdentity.Abstractions`), call `GetAzureSqlAccessTokenAsync` and assign the result to `SqlConnection.AccessToken` before opening the connection. Do this for every new connection. The connection string must then not contain an `Authentication` keyword.
 
 ```csharp
 using Csag.WorkloadIdentity.Abstractions;
@@ -113,41 +172,6 @@ public sealed class OrderRepository(IConfiguration configuration, IAzureSqlToken
 ```
 
 Register the class as usual, for example `builder.Services.AddScoped<OrderRepository>();`.
-
-#### With Entity Framework Core
-
-EF Core has no option for the access token, so set it on the underlying `SqlConnection` when you create the context. This factory follows the pattern the repository's Demo project uses (`AppDbContext` is your `DbContext`):
-
-```csharp
-using Csag.WorkloadIdentity.Abstractions;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-
-public sealed class AppDbContextFactory(IConfiguration configuration, IAzureSqlTokenProvider tokenProvider)
-{
-    private readonly DbContextOptions<AppDbContext> options = new DbContextOptionsBuilder<AppDbContext>()
-        .UseSqlServer(configuration.GetConnectionString("AzureSql")
-            ?? throw new InvalidOperationException("Connection string 'AzureSql' is not configured."))
-        .Options;
-
-    public async Task<AppDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-    {
-        // The connection string carries no credentials; the access token authenticates the connection.
-        var accessToken = await tokenProvider.GetAzureSqlAccessTokenAsync(cancellationToken);
-
-        var context = new AppDbContext(this.options);
-        if (context.Database.GetDbConnection() is SqlConnection sqlConnection)
-        {
-            sqlConnection.AccessToken = accessToken;
-        }
-
-        return context;
-    }
-}
-```
-
-Register the factory (`builder.Services.AddScoped<AppDbContextFactory>();`) and call `CreateDbContextAsync` wherever you need a context. If you prefer `AddDbContext`, make the same assignment from a `DbConnectionInterceptor` that overrides `ConnectionOpeningAsync`.
 
 ## Quickstart B: Azure SQL and Blob Storage from Azure App Service
 
@@ -179,7 +203,7 @@ With the App Service's system-assigned identity for both resources:
     }
   },
   "ConnectionStrings": {
-    "AzureSql": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+    "AzureSql": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default"
   },
   "BlobStorage": {
     "ServiceUri": "https://<storage-account>.blob.core.windows.net"
@@ -221,7 +245,7 @@ Azure SDK clients are thread-safe and meant to be shared, so a singleton is the 
 
 ### 4. Use the tokens
 
-Azure SQL works exactly as in quickstart A: `IAzureSqlTokenProvider` and `SqlConnection.AccessToken`, with plain ADO.NET or the EF Core factory. For Blob Storage inject the `BlobServiceClient`; the SDK obtains a token through the credential as needed (its bearer-token policy caches the token and asks again only when it is missing or near expiry), and the adapter serves each of those requests from the provider's held token:
+Azure SQL works exactly as in quickstart A: install the `SqlAuthenticationProvider`, or assign `SqlConnection.AccessToken` to connections you open yourself. For Blob Storage inject the `BlobServiceClient`; the SDK obtains a token through the credential as needed (its bearer-token policy caches the token and asks again only when it is missing or near expiry), and the adapter serves each of those requests from the provider's held token:
 
 ```csharp
 using Azure.Storage.Blobs;
@@ -253,7 +277,7 @@ All keys live under the `Csag.WorkloadIdentity` section. `<resource>` stands for
 | `<resource>:Google:TenantId` | with `Google` | – | Directory (tenant) ID of the Microsoft Entra tenant that issues the access token. |
 | `<resource>:Google:ClientId` | with `Google` | – | Application (client) ID of the app registration, or client ID of the user-assigned managed identity, that holds the federated credential. |
 | `<resource>:Google:ServiceAccountEmail` | with `Google` | – | The Google service account the ID token is minted for. The federated credential names this account's unique ID as its subject. |
-| `RefreshAheadWindow` | no | `00:05:00` | How long before an access token expires it is treated as due for refresh. Applies to every resource. Must be positive. |
+| `RefreshAheadWindow` | no | `00:05:00` | How long before an access token expires it is treated as due for refresh. Applies to every resource. Must be positive and at most five minutes: the credentials return their cached token until five minutes before expiry, so a longer window cannot refresh earlier. |
 | `EnableBackgroundRefresh` | no | `true` | Whether a hosted service keeps the token of every configured resource refreshed ahead of its expiry. |
 
 Environment variables follow the usual .NET mapping, with `__` as the section separator and the `.` of the section name kept as is: `Csag.WorkloadIdentity__AzureSql__Provider`, `Csag.WorkloadIdentity__BlobStorage__ManagedIdentity__ClientId`, `Csag.WorkloadIdentity__RefreshAheadWindow`, and so on.
@@ -287,14 +311,14 @@ services.AddWorkloadIdentity(options =>
         Provider = WorkloadIdentityProvider.ManagedIdentity,
         ManagedIdentity = new ManagedIdentityOptions { UseSystemAssignedIdentity = true },
     };
-    options.RefreshAheadWindow = TimeSpan.FromMinutes(10);
+    options.RefreshAheadWindow = TimeSpan.FromMinutes(3);
     options.EnableBackgroundRefresh = true;
 });
 ```
 
-`WorkloadIdentityOptions`, `WorkloadIdentityResourceOptions`, `WorkloadIdentityProvider`, `GoogleOptions` and `ManagedIdentityOptions` live in `Csag.WorkloadIdentity.Options`; the provider interfaces and `IAccessTokenProvider` in `Csag.WorkloadIdentity.Abstractions`; `AddWorkloadIdentity`, `WorkloadIdentityTokenCredential` and `TokenScope` in `Csag.WorkloadIdentity`.
+`WorkloadIdentityOptions`, `WorkloadIdentityResourceOptions`, `WorkloadIdentityProvider`, `GoogleOptions` and `ManagedIdentityOptions` live in `Csag.WorkloadIdentity.Options`; the provider interfaces and `IAccessTokenProvider` in `Csag.WorkloadIdentity.Abstractions`; `AddWorkloadIdentity` and `WorkloadIdentityTokenCredential` in `Csag.WorkloadIdentity`.
 
-The options are validated when the host starts: no resource section at all, a missing value in a configured resource's provider section, or a non-positive `RefreshAheadWindow` throws an `OptionsValidationException` that names every offending value by its path, for example `AzureSql:Google:ServiceAccountEmail must be provided.` A `Provider` value other than `ManagedIdentity` or `Google` fails earlier, when the configuration is bound. Calling `AddWorkloadIdentity` more than once is harmless. Both token providers are always registered; resolving the provider of a resource whose section is absent throws an `InvalidOperationException` that names the missing section.
+The options are validated when the host starts: no resource section at all, a missing value in a configured resource's provider section, or a `RefreshAheadWindow` that is not positive or exceeds five minutes, throws an `OptionsValidationException` that names every offending value by its path, for example `AzureSql:Google:ServiceAccountEmail must be provided.` A `Provider` value other than `ManagedIdentity` or `Google` fails earlier, when the configuration is bound. Calling `AddWorkloadIdentity` more than once is harmless. Both token providers are always registered; resolving the provider of a resource whose section is absent throws an `InvalidOperationException` that names the missing section.
 
 ## Migrating from Csag.AzureSqlFederatedIdentity / Neolution.AzureSqlFederatedIdentity
 
@@ -336,15 +360,15 @@ The options are validated when the host starts: no resource section at all, a mi
    ```
 
    Environment variables move the same way: `Neolution.AzureSqlFederatedIdentity__TenantId` becomes `Csag.WorkloadIdentity__AzureSql__Google__TenantId`, and so on.
-4. **Unchanged.** `IAzureSqlTokenProvider.GetAzureSqlAccessTokenAsync` and the way the token is attached to `SqlConnection.AccessToken`; the token is held in memory, and a hosted service keeps it refreshed.
-5. **New or removed.** `RefreshAheadWindow` and `EnableBackgroundRefresh` are optional root keys; keep their defaults unless you have a reason not to. `IGoogleIdTokenProvider.GetIdTokenAsync` now takes the service account email, so resources can federate through different service accounts. `IAzureSqlTokenExchanger` no longer exists; the exchange is performed by internal per-provider services, and `IAzureSqlTokenProvider` remains the seam to substitute.
+4. **Unchanged.** `IAzureSqlTokenProvider.GetAzureSqlAccessTokenAsync` and assigning the token to `SqlConnection.AccessToken`; the token is held in memory, and a hosted service keeps it refreshed. Quickstart A also shows a `SqlAuthenticationProvider`, which serves EF Core and every other connection without a factory.
+5. **New or removed.** `RefreshAheadWindow` and `EnableBackgroundRefresh` are optional root keys; keep their defaults unless you have a reason not to, and keep `RefreshAheadWindow` at five minutes or less. `IGoogleIdTokenProvider.GetIdTokenAsync` now takes the service account email, so resources can federate through different service accounts. `IAzureSqlTokenExchanger` no longer exists; the exchange is performed by internal per-provider services, and `IAzureSqlTokenProvider` remains the seam to substitute. The `AzureSqlTokenProvider` class is internal; depend on `IAzureSqlTokenProvider`.
 
 ## Notes
 
-- **Connection string.** The access token is the credential, so the connection string must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword: `SqlClient` throws an `InvalidOperationException` when `AccessToken` is combined with conflicting authentication settings. Keep `Encrypt=True` so the token and your data travel over TLS.
+- **Connection string.** The access token is the credential, so the connection string must not contain `User ID`/`Password` or `Integrated Security`. With a `SqlAuthenticationProvider` it must say `Authentication=Active Directory Default`; with `SqlConnection.AccessToken` it must not contain an `Authentication` keyword, because `SqlClient` throws an `InvalidOperationException` when `AccessToken` is combined with conflicting authentication settings. Keep `Encrypt=True` so the token and your data travel over TLS.
 - **Google runtime identity.** The Google ID token is requested through Application Default Credentials (ADC). Whatever identity ADC resolves to (the service account attached to the Cloud Run, GKE or Compute Engine resource, or your own account after `gcloud auth application-default login`) must hold `roles/iam.serviceAccountOpenIdTokenCreator` on the configured `ServiceAccountEmail`. The intended deployment is the simplest one: the application runs *as* that service account, with the role granted to the account on itself. Two resources may name different service accounts; each is exchanged through its own credential.
 - **Managed identity at runtime.** The token comes from the identity endpoint of the Azure resource the application runs on, so a system-assigned identity must be enabled on that resource and a user-assigned one attached to it. A workstation has no such endpoint; `ManagedIdentity` only works on Azure. A `ClientId` next to `"UseSystemAssignedIdentity": true` is ignored.
-- **Token handling.** The provider holds the token; do not cache or persist it yourself. `AccessToken` is part of the `SqlClient` connection pool key, so a refreshed token starts a new pool, which is expected. If your connection string sets `Min Pool Size` above zero, call `SqlConnection.ClearPool` with a connection that carries the old token once it has expired; otherwise the pool keeps that token's physical connections open indefinitely (see the [`AccessToken` remarks](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.sqlclient.sqlconnection.accesstoken)). Alternatively, set `SqlConnection.AccessTokenCallback` (Microsoft.Data.SqlClient 5.2 or later) to a delegate that returns `new SqlAuthenticationToken(token.Token, token.ExpiresOn)` from `IAzureSqlTokenProvider.GetAccessTokenAsync`: the callback keeps a single pool across token refreshes.
+- **Token handling.** The provider holds the token; do not cache or persist it yourself. When you assign `SqlConnection.AccessToken`, the token is part of the `SqlClient` connection pool key, so a refreshed token starts a new pool, which is expected. If your connection string sets `Min Pool Size` above zero, call `SqlConnection.ClearPool` with a connection that carries the old token once it has expired; otherwise the pool keeps that token's physical connections open indefinitely (see the [`AccessToken` remarks](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.sqlclient.sqlconnection.accesstoken)). Alternatively, set `SqlConnection.AccessTokenCallback` (Microsoft.Data.SqlClient 5.2 or later) to a delegate that returns `new SqlAuthenticationToken(token.Token, token.ExpiresOn)` from `IAzureSqlTokenProvider.GetAccessTokenAsync`: the callback keeps a single pool across token refreshes.
 - **Background refresh.** When enabled, the hosted service runs one loop per configured resource, so a slow or failing resource does not delay the other. Each loop requests a token as soon as the host starts and again when the held token enters the refresh-ahead window, or at half the token's remaining lifetime when that is shorter than the window (the wait is kept between 10 seconds and 1 day). A failed request is logged at `Error` and retried, waiting 5 seconds and doubling up to 5 minutes between attempts. When disabled, the first caller to find the token due for refresh performs the request while concurrent callers wait for its result. If you register your own `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider`, the hosted service leaves it alone.
 - **Logging.** All categories start with `Csag.WorkloadIdentity`. Token requests and refreshes log at `Debug`; per-call reuse of the held token logs at `Trace`.
 
@@ -352,7 +376,7 @@ The options are validated when the host starts: no resource section at all, a mi
 
 | Symptom | Likely cause |
 |---|---|
-| The host fails to start with `OptionsValidationException` | No resource section, a required key missing in a configured resource, or a non-positive `RefreshAheadWindow`; the message names the value. |
+| The host fails to start with `OptionsValidationException` | No resource section, a required key missing in a configured resource, or a `RefreshAheadWindow` that is not positive or exceeds five minutes; the message names every offending value. |
 | The host fails to start with `InvalidOperationException: Failed to convert configuration value … 'Provider'` | The `Provider` value is not `ManagedIdentity` or `Google`. |
 | `InvalidOperationException`: "The AzureSql resource is not configured" (or `BlobStorage`) | `IAzureSqlTokenProvider` or `IBlobStorageTokenProvider` was resolved, but the configuration has no section for that resource. |
 | `CredentialUnavailableException`: no managed identity endpoint found | `ManagedIdentity` is selected but the application is not running on an Azure resource with a managed identity, for example on a workstation. |

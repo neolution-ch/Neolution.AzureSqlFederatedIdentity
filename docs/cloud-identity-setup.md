@@ -81,7 +81,7 @@ Google-signed ID token   iss = https://accounts.google.com, sub = <service accou
    ▼
 Access token for https://database.windows.net/.default or https://storage.azure.com/.default
    │
-   │  3. SqlConnection.AccessToken, or TokenCredential for BlobServiceClient
+   │  3. SqlAuthenticationProvider or SqlConnection.AccessToken, or TokenCredential for BlobServiceClient
    ▼
 Azure SQL or Blob Storage, as the identity that holds the federated credential
 ```
@@ -197,12 +197,11 @@ In the Azure portal open the logical SQL server, select **Microsoft Entra ID** u
 
 In the target database (not in `master`), create a contained user for the identity. With Google federation, the user represents the holder of the federated credential; the Google service account never appears in Azure SQL:
 
-
 ```sql
 CREATE USER [<identity-name>] FROM EXTERNAL PROVIDER;
 ```
 
-When a person runs this statement, as the Microsoft Entra admin from step 3.1 does here, Azure SQL looks the app registration up in Microsoft Graph with that person's delegated permissions, and nothing more is needed. Only when a service principal runs it, for example a deployment pipeline that signs in as an app registration or a managed identity, does Azure SQL query Microsoft Graph with its *server identity*, the managed identity assigned to the logical server, because an application cannot act on behalf of another. In that case assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
+When a person runs this statement, as the Microsoft Entra admin from C.1.1 does here, Azure SQL looks the identity up in Microsoft Graph with that person's delegated permissions, and nothing more is needed. Only when a service principal runs it, for example a deployment pipeline that signs in as an app registration or a managed identity, does Azure SQL query Microsoft Graph with its *server identity*, the managed identity assigned to the logical server, because an application cannot act on behalf of another. In that case assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
 
 Then grant permissions. The built-in roles are a convenient starting point:
 
@@ -305,12 +304,12 @@ For a user-assigned identity replace the `ManagedIdentity` section with `{ "Clie
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default"
   }
 }
 ```
 
-The connection string and the storage account's blob endpoint are your own application's settings (the Demo reads `ConnectionStrings:DefaultConnection`). The connection string names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.WorkloadIdentity/README.md) shows how to register the library, attach the token to a `SqlConnection` and build a `BlobServiceClient` on the library's `TokenCredential` adapter.
+The connection string and the storage account's blob endpoint are your own application's settings (the Demo reads `ConnectionStrings:DefaultConnection`). The connection string names the server and database and carries no credentials such as `User ID`/`Password` or `Integrated Security`: the access token is the credential, and `Encrypt=True` keeps the token and the data on TLS. `Authentication=Active Directory Default` makes `SqlClient` ask the `SqlAuthenticationProvider` that the application installs for the token, as the Demo does; an application that assigns `SqlConnection.AccessToken` itself must leave the `Authentication` keyword out. The [package README](../Csag.WorkloadIdentity/README.md) shows how to register the library, both ways of handing the token to `SqlClient`, and how to build a `BlobServiceClient` on the library's `TokenCredential` adapter.
 
 ## E. Deploy
 
@@ -324,7 +323,7 @@ az webapp config appsettings set --resource-group <resource-group> --name <app-n
   Csag.WorkloadIdentity__AzureSql__ManagedIdentity__UseSystemAssignedIdentity=true \
   Csag.WorkloadIdentity__BlobStorage__Provider=ManagedIdentity \
   Csag.WorkloadIdentity__BlobStorage__ManagedIdentity__UseSystemAssignedIdentity=true \
-  "ConnectionStrings__DefaultConnection=Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+  "ConnectionStrings__DefaultConnection=Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default"
 ```
 
 The same keys work for Container Apps, Functions and virtual machines, in whatever way each supplies environment variables.
