@@ -1,5 +1,6 @@
 ﻿namespace Csag.AzureSqlFederatedIdentity.Internal
 {
+    using System.Collections.Concurrent;
     using Azure.Core;
     using Csag.AzureSqlFederatedIdentity.Abstractions;
     using Microsoft.Extensions.Logging;
@@ -30,15 +31,11 @@
         private readonly IClientAssertionCredentialFactory credentialFactory;
 
         /// <summary>
-        /// Guards <see cref="credential"/>.
+        /// One credential per tenant and client. A credential caches the tokens it obtains, so it is kept for the
+        /// lifetime of the exchanger. Callers racing on a new pair may each create a credential and all but one is
+        /// discarded, which is harmless because creating a credential makes no network call.
         /// </summary>
-        private readonly object credentialLock = new();
-
-        /// <summary>
-        /// The credential for the most recently requested tenant and client. The credential caches the tokens it
-        /// obtains, so it is kept for as long as the same tenant and client are requested.
-        /// </summary>
-        private CachedCredential? credential;
+        private readonly ConcurrentDictionary<(string TenantId, string ClientId), TokenCredential> credentials = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AzureSqlTokenExchanger"/> class.
@@ -73,34 +70,17 @@
         }
 
         /// <summary>
-        /// Returns the credential for the given tenant and client, creating it on first use or when the pair changes.
+        /// Returns the credential for the given tenant and client, creating it on first use.
         /// </summary>
         /// <param name="tenantId">The Azure AD tenant ID.</param>
         /// <param name="clientId">The Azure AD client ID.</param>
         /// <returns>The credential.</returns>
         private TokenCredential GetOrCreateCredential(string tenantId, string clientId)
         {
-            lock (this.credentialLock)
-            {
-                var current = this.credential;
-                if (current is null || current.TenantId != tenantId || current.ClientId != clientId)
-                {
-                    // The credential passes the callback the cancellation token of the token request it is serving.
-                    var tokenCredential = this.credentialFactory.Create(tenantId, clientId, this.googleIdTokenProvider.GetIdTokenAsync);
-                    current = new CachedCredential(tenantId, clientId, tokenCredential);
-                    this.credential = current;
-                }
-
-                return current.Credential;
-            }
+            // The credential passes the callback the cancellation token of the token request it is serving.
+            return this.credentials.GetOrAdd(
+                (tenantId, clientId),
+                key => this.credentialFactory.Create(key.TenantId, key.ClientId, this.googleIdTokenProvider.GetIdTokenAsync));
         }
-
-        /// <summary>
-        /// A credential together with the tenant and client it was created for.
-        /// </summary>
-        /// <param name="TenantId">The Azure AD tenant ID.</param>
-        /// <param name="ClientId">The Azure AD client ID.</param>
-        /// <param name="Credential">The credential.</param>
-        private sealed record CachedCredential(string TenantId, string ClientId, TokenCredential Credential);
     }
 }

@@ -103,6 +103,35 @@
         }
 
         /// <summary>
+        /// Verifies that two tenant and client pairs used in turn each keep their own credential.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        [Fact]
+        public async Task Given_TwoTenantClientPairsUsedInTurn_When_ExchangeClientAssertionForAzureTokenAsync_Then_CreatesEachCredentialOnce()
+        {
+            // Arrange
+            const string otherTenantId = "other-tenant";
+            const string otherClientId = "other-client";
+            var otherCredential = Substitute.For<TokenCredential>();
+            this.credentialFactory.Create(otherTenantId, otherClientId, Arg.Any<Func<CancellationToken, Task<string>>>()).Returns(otherCredential);
+            var token = new AccessToken("access-token", DateTimeOffset.UtcNow.AddHours(1));
+            this.credential.GetTokenAsync(Arg.Any<TokenRequestContext>(), Arg.Any<CancellationToken>()).Returns(token);
+            otherCredential.GetTokenAsync(Arg.Any<TokenRequestContext>(), Arg.Any<CancellationToken>()).Returns(token);
+
+            // Act
+            await this.exchanger.ExchangeClientAssertionForAzureTokenAsync(TenantId, ClientId, CancellationToken.None);
+            await this.exchanger.ExchangeClientAssertionForAzureTokenAsync(otherTenantId, otherClientId, CancellationToken.None);
+            await this.exchanger.ExchangeClientAssertionForAzureTokenAsync(TenantId, ClientId, CancellationToken.None);
+            await this.exchanger.ExchangeClientAssertionForAzureTokenAsync(otherTenantId, otherClientId, CancellationToken.None);
+
+            // Assert
+            this.credentialFactory.Received(1).Create(TenantId, ClientId, Arg.Any<Func<CancellationToken, Task<string>>>());
+            this.credentialFactory.Received(1).Create(otherTenantId, otherClientId, Arg.Any<Func<CancellationToken, Task<string>>>());
+            await this.credential.Received(2).GetTokenAsync(Arg.Any<TokenRequestContext>(), Arg.Any<CancellationToken>());
+            await otherCredential.Received(2).GetTokenAsync(Arg.Any<TokenRequestContext>(), Arg.Any<CancellationToken>());
+        }
+
+        /// <summary>
         /// Verifies that the client assertion callback forwards the cancellation token the credential passes to it,
         /// not the token of the call that created the credential.
         /// </summary>

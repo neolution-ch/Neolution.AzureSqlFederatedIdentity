@@ -4,9 +4,17 @@
 
     /// <summary>
     /// Validates <see cref="AzureSqlFederatedIdentityOptions"/> to ensure all required configuration values are set.
+    /// Every failed check is reported, so a single startup failure names every problem.
     /// </summary>
     public class AzureSqlFederatedIdentityOptionsValidator : IValidateOptions<AzureSqlFederatedIdentityOptions>
     {
+        /// <summary>
+        /// The longest refresh-ahead window that still obtains a fresh token. The credential caches its tokens in
+        /// MSAL, which keeps returning the cached token until five minutes before it expires, so an earlier refresh
+        /// gets the same token back.
+        /// </summary>
+        private static readonly TimeSpan MaximumRefreshAheadWindow = TimeSpan.FromMinutes(5);
+
         /// <summary>
         /// Validates the specified <see cref="AzureSqlFederatedIdentityOptions"/> instance.
         /// </summary>
@@ -17,32 +25,39 @@
         {
             ArgumentNullException.ThrowIfNull(options);
 
+            var builder = new ValidateOptionsResultBuilder();
+
             if (string.IsNullOrWhiteSpace(options.TenantId))
             {
-                return ValidateOptionsResult.Fail("TenantId must be provided.");
+                builder.AddError("TenantId must be provided.");
             }
 
             if (string.IsNullOrWhiteSpace(options.ClientId))
             {
-                return ValidateOptionsResult.Fail("ClientId must be provided.");
+                builder.AddError("ClientId must be provided.");
             }
 
             if (options.Google is null)
             {
-                return ValidateOptionsResult.Fail("Google section must be provided.");
+                builder.AddError("Google section must be provided.");
             }
 
-            if (string.IsNullOrWhiteSpace(options.Google.ServiceAccountEmail))
+            if (options.Google is not null && string.IsNullOrWhiteSpace(options.Google.ServiceAccountEmail))
             {
-                return ValidateOptionsResult.Fail("Google:ServiceAccountEmail must be provided.");
+                builder.AddError("Google:ServiceAccountEmail must be provided.");
             }
 
             if (options.RefreshAheadWindow <= TimeSpan.Zero)
             {
-                return ValidateOptionsResult.Fail("RefreshAheadWindow must be a positive duration.");
+                builder.AddError("RefreshAheadWindow must be a positive duration.");
             }
 
-            return ValidateOptionsResult.Success;
+            if (options.RefreshAheadWindow > MaximumRefreshAheadWindow)
+            {
+                builder.AddError("RefreshAheadWindow must not exceed five minutes: the credential returns its cached token until five minutes before expiry, so a longer window cannot refresh earlier.");
+            }
+
+            return builder.Build();
         }
     }
 }

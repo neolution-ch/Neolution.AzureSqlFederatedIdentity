@@ -133,6 +133,65 @@
         }
 
         /// <summary>
+        /// Verifies that a refresh-ahead window longer than five minutes fails validation.
+        /// </summary>
+        /// <param name="seconds">The window length in seconds.</param>
+        [Theory]
+        [InlineData(301)]
+        [InlineData(600)]
+        public void Given_RefreshAheadWindowAboveFiveMinutes_When_Validate_Then_Fails(int seconds)
+        {
+            // Arrange
+            var options = CreateCompleteOptions();
+            options.RefreshAheadWindow = TimeSpan.FromSeconds(seconds);
+
+            // Act
+            var result = this.validator.Validate(null, options);
+
+            // Assert
+            result.Failed.ShouldBeTrue();
+            result.FailureMessage.ShouldNotBeNull().ShouldContain(nameof(AzureSqlFederatedIdentityOptions.RefreshAheadWindow));
+        }
+
+        /// <summary>
+        /// Verifies that a refresh-ahead window of exactly five minutes passes validation.
+        /// </summary>
+        [Fact]
+        public void Given_RefreshAheadWindowOfFiveMinutes_When_Validate_Then_Succeeds()
+        {
+            // Arrange
+            var options = CreateCompleteOptions();
+            options.RefreshAheadWindow = TimeSpan.FromMinutes(5);
+
+            // Act
+            var result = this.validator.Validate(null, options);
+
+            // Assert
+            result.Succeeded.ShouldBeTrue();
+        }
+
+        /// <summary>
+        /// Verifies that every failed check is reported, not only the first.
+        /// </summary>
+        [Fact]
+        public void Given_SeveralInvalidValues_When_Validate_Then_ReportsEveryFailure()
+        {
+            // Arrange
+            var options = CreateCompleteOptions();
+            options.TenantId = string.Empty;
+            options.ClientId = string.Empty;
+            options.Google = null;
+            options.RefreshAheadWindow = TimeSpan.Zero;
+
+            // Act
+            var result = this.validator.Validate(null, options);
+
+            // Assert
+            result.Failed.ShouldBeTrue();
+            result.Failures.ShouldNotBeNull().Count().ShouldBe(4);
+        }
+
+        /// <summary>
         /// Creates options with every required value set.
         /// </summary>
         /// <returns>The options.</returns>

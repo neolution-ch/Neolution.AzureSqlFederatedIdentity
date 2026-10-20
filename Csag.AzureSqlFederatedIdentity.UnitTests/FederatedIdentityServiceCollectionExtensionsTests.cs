@@ -33,7 +33,7 @@
         /// <summary>
         /// The refresh-ahead window in the test configuration.
         /// </summary>
-        private static readonly TimeSpan RefreshAheadWindow = TimeSpan.FromMinutes(7);
+        private static readonly TimeSpan RefreshAheadWindow = TimeSpan.FromMinutes(3);
 
         /// <summary>
         /// Verifies that the parameterless overload binds the default section of the registered configuration and
