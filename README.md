@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Csag.AzureSqlFederatedIdentity.svg)](https://www.nuget.org/packages/Csag.AzureSqlFederatedIdentity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-lightgray.svg)](./LICENSE)
 
-A .NET library that lets an application running on Google Cloud connect to Azure SQL without a password, secret or key. It exchanges the application's Google identity for a Microsoft Entra ID access token through workload identity federation (Google-signed ID token → Microsoft Entra ID access token) and you attach that token to the `SqlConnection`.
+A .NET library that lets an application running on Google Cloud connect to Azure SQL without a password, secret or key. It exchanges the application's Google identity for a Microsoft Entra ID access token through workload identity federation (Google-signed ID token → Microsoft Entra ID access token) and you hand that token to `SqlClient`.
 
 ## Projects
 
@@ -17,7 +17,7 @@ A .NET library that lets an application running on Google Cloud connect to Azure
 ## Quick start
 
 1. Set up the cloud side once: the Google service account and its IAM role, the Microsoft Entra ID app registration with a federated credential, the Azure SQL database user and the Cloud Run runtime identity. Every step is in [docs/cloud-identity-setup.md](./docs/cloud-identity-setup.md).
-2. Install the package and wire it into your application. The [package README](./Csag.AzureSqlFederatedIdentity/README.md) has the complete quickstart: configuration keys, service registration and attaching the token to `SqlConnection`, with plain ADO.NET and with EF Core.
+2. Install the package and wire it into your application. The [package README](./Csag.AzureSqlFederatedIdentity/README.md) has the complete quickstart: configuration keys, service registration, and handing the token to `SqlClient` through a `SqlAuthenticationProvider` (which also covers EF Core) or `SqlConnection.AccessToken`.
 
    ```shell
    dotnet add package Csag.AzureSqlFederatedIdentity

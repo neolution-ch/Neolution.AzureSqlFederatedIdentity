@@ -118,11 +118,12 @@ In the Azure portal open the logical SQL server and, under **Settings** > **Micr
 
 In the target database (not in `master`), create a contained user for the app registration. The user represents the app registration; the Google service account never appears in Azure SQL:
 
-Creating a user for a service principal, which is what an app registration or a managed identity is, needs one more thing than creating one for a person: Azure SQL cannot look the principal up with the connected admin's permissions, so the SQL engine uses the *server identity*, the managed identity assigned to the logical server, to query Microsoft Graph. Assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement below fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
 
 ```sql
 CREATE USER [<app-registration-display-name>] FROM EXTERNAL PROVIDER;
 ```
+
+When a person runs this statement, as the Microsoft Entra admin from step 3.1 does here, Azure SQL looks the app registration up in Microsoft Graph with that person's delegated permissions, and nothing more is needed. Only when a service principal runs it, for example a deployment pipeline that signs in as an app registration or a managed identity, does Azure SQL query Microsoft Graph with its *server identity*, the managed identity assigned to the logical server, because an application cannot act on behalf of another. In that case assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
 
 Then grant permissions. The built-in roles are a convenient starting point:
 
@@ -153,7 +154,7 @@ The library binds its options from the `Csag.AzureSqlFederatedIdentity` configur
 | `Csag.AzureSqlFederatedIdentity:TenantId` | `Csag.AzureSqlFederatedIdentity__TenantId` | Directory (tenant) ID (step 2.1) |
 | `Csag.AzureSqlFederatedIdentity:ClientId` | `Csag.AzureSqlFederatedIdentity__ClientId` | Application (client) ID (step 2.1) |
 | `Csag.AzureSqlFederatedIdentity:Google:ServiceAccountEmail` | `Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail` | Service account email (step 1.2) |
-| `Csag.AzureSqlFederatedIdentity:RefreshAheadWindow` | `Csag.AzureSqlFederatedIdentity__RefreshAheadWindow` | Optional; how long before expiry the token is refreshed. Default `00:05:00`, must be positive |
+| `Csag.AzureSqlFederatedIdentity:RefreshAheadWindow` | `Csag.AzureSqlFederatedIdentity__RefreshAheadWindow` | Optional; how long before expiry the token is refreshed. Default `00:05:00`; must be positive and at most five minutes |
 | `Csag.AzureSqlFederatedIdentity:EnableBackgroundRefresh` | `Csag.AzureSqlFederatedIdentity__EnableBackgroundRefresh` | Optional; default `true` |
 
 The first three are required; the application refuses to start if any of them is missing. In `appsettings.json`:
@@ -168,12 +169,12 @@ The first three are required; the application refuses to start if any of them is
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default"
   }
 }
 ```
 
-The connection string is your own application's setting (the Demo reads `ConnectionStrings:DefaultConnection`). It names only the server and database: the access token is the credential, so it must not contain `User ID`/`Password`, `Integrated Security` or an `Authentication` keyword, and `Encrypt=True` keeps the token and the data on TLS. The [package README](../Csag.AzureSqlFederatedIdentity/README.md) shows how to register the library and attach the token to a `SqlConnection`.
+The connection string is your own application's setting (the Demo reads `ConnectionStrings:DefaultConnection`). It names the server and database and carries no credentials such as `User ID`/`Password` or `Integrated Security`: the access token is the credential, and `Encrypt=True` keeps the token and the data on TLS. `Authentication=Active Directory Default` makes `SqlClient` ask the `SqlAuthenticationProvider` that the application installs for the token, as the Demo does; an application that assigns `SqlConnection.AccessToken` itself must leave the `Authentication` keyword out. The [package README](../Csag.AzureSqlFederatedIdentity/README.md) shows how to register the library and both ways of handing the token to `SqlClient`.
 
 ## 5. Cloud Run
 
@@ -184,7 +185,7 @@ Deploy the application with the service account from step 1 as its runtime ident
 Csag.AzureSqlFederatedIdentity__TenantId: "<tenant-id>"
 Csag.AzureSqlFederatedIdentity__ClientId: "<client-id>"
 Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail: "<name>@<project-id>.iam.gserviceaccount.com"
-ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True"
+ConnectionStrings__DefaultConnection: "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default"
 ```
 
 ```shell
@@ -198,7 +199,7 @@ gcloud run deploy <service> \
 
 To change only the identity of an existing service, use `gcloud run services update <service> --service-account <name>@<project-id>.iam.gserviceaccount.com`. In the console, the runtime service account is under the service's **Security** tab and the variables under **Variables & Secrets**.
 
-At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.AzureSqlFederatedIdentity/README.md) maps the usual messages to their cause.
+At startup the application validates its configuration: the three required settings must be present and `RefreshAheadWindow` must be positive and at most five minutes. With background refresh on (the default) the first token exchange happens right after startup; with it off, on the first database access. Either way the application requests an ID token for the configured service account through ADC (as the runtime service account), exchanges it at Microsoft Entra ID, and opens the connection with the resulting access token. If something fails, the application log names the failing step; the troubleshooting table in the [package README](../Csag.AzureSqlFederatedIdentity/README.md) maps the usual messages to their cause.
 
 ## References
 
