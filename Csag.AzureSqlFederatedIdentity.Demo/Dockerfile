@@ -19,8 +19,8 @@ WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 
-# Non-root user shipped with the aspnet image.
-USER app
+# Non-root user shipped with the aspnet image, by its numeric ID so that Kubernetes runAsNonRoot can verify it.
+USER $APP_UID
 
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "Csag.AzureSqlFederatedIdentity.Demo.dll"]

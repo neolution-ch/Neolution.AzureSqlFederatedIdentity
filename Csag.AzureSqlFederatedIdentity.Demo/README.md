@@ -1,6 +1,6 @@
 # Csag.AzureSqlFederatedIdentity.Demo
 
-A minimal ASP.NET Core app that runs on Google Cloud Run and reads from Azure SQL without a database password. The `Csag.AzureSqlFederatedIdentity` library turns the app's Google identity into an Azure AD access token, and [`Database/AppDbContextFactory.cs`](Database/AppDbContextFactory.cs) attaches that token to each `SqlConnection`.
+A minimal ASP.NET Core app that runs on Google Cloud Run and reads from Azure SQL without a database password. The `Csag.AzureSqlFederatedIdentity` library turns the app's Google identity into an Azure AD access token, and [`Database/FederatedSqlAuthenticationProvider.cs`](Database/FederatedSqlAuthenticationProvider.cs) supplies that token to `SqlClient` for every connection.
 
 | Route | Behaviour |
 |---|---|
@@ -26,16 +26,16 @@ A minimal ASP.NET Core app that runs on Google Cloud Run and reads from Azure SQ
 | Google service account email | `Csag.AzureSqlFederatedIdentity:Google:ServiceAccountEmail` | `Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail` |
 | Azure SQL connection string | `ConnectionStrings:DefaultConnection` | `ConnectionStrings__DefaultConnection` |
 
-The first three are validated at startup, and the app refuses to start if any of them is missing. The connection string is checked on the first request to `/test`.
+The first three are validated at startup, and the app refuses to start if any of them is missing. The connection string is first used on the first request to `/test`.
 
 ```shell
 dotnet user-secrets set "Csag.AzureSqlFederatedIdentity:TenantId" "<tenant-id>" --project Csag.AzureSqlFederatedIdentity.Demo
 dotnet user-secrets set "Csag.AzureSqlFederatedIdentity:ClientId" "<client-id>" --project Csag.AzureSqlFederatedIdentity.Demo
 dotnet user-secrets set "Csag.AzureSqlFederatedIdentity:Google:ServiceAccountEmail" "<name>@<project>.iam.gserviceaccount.com" --project Csag.AzureSqlFederatedIdentity.Demo
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True" --project Csag.AzureSqlFederatedIdentity.Demo
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default" --project Csag.AzureSqlFederatedIdentity.Demo
 ```
 
-The connection string must not contain `User ID`, `Password`, `Integrated Security` or `Authentication`: the access token is the credential, and `SqlClient` rejects a connection string that also carries one of those.
+The connection string must contain `Authentication=Active Directory Default`, which makes `SqlClient` ask the federated provider for the access token. It must not carry other credentials (`User ID`, `Password` or `Integrated Security`): the access token is the credential.
 
 ## Schema
 
@@ -78,7 +78,7 @@ docker run --rm -p 8080:8080 --user "$(id -u):$(id -g)" \
   -e Csag.AzureSqlFederatedIdentity__TenantId="<tenant-id>" \
   -e Csag.AzureSqlFederatedIdentity__ClientId="<client-id>" \
   -e Csag.AzureSqlFederatedIdentity__Google__ServiceAccountEmail="<name>@<project>.iam.gserviceaccount.com" \
-  -e ConnectionStrings__DefaultConnection="Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True" \
+  -e ConnectionStrings__DefaultConnection="Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;Encrypt=True;Authentication=Active Directory Default" \
   -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro" \
   -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json \
   csag-demo
