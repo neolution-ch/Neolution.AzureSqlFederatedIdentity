@@ -94,4 +94,4 @@ On Windows the credential file is `%APPDATA%\gcloud\application_default_credenti
 
 ## Deploy to Cloud Run
 
-Push the image to Artifact Registry and deploy it with the runtime service account set to the configured Google service account and the four settings supplied as environment variables. Cloud Run sends traffic to port 8080, which is the port the image listens on. Section 4 of the [setup guide](../docs/cloud-identity-setup.md) has the details.
+Push the image to Artifact Registry and deploy it with the runtime service account set to the configured Google service account and the four settings supplied as environment variables. Cloud Run sends traffic to port 8080, which is the port the image listens on. The [setup guide](../docs/cloud-identity-setup.md) covers the Cloud Run configuration in detail.
