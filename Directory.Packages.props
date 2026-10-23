@@ -11,10 +11,10 @@
     <PackageVersion Include="Neolution.CodeAnalysis.TestsRuleset" Version="3.3.0-beta.2" />
 
     <!-- Library -->
-    <PackageVersion Include="Azure.Core" Version="1.53.0" />
+    <PackageVersion Include="Azure.Core" Version="1.63.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Google.Cloud.Iam.Credentials.V1" Version="2.5.0" />
-    <PackageVersion Include="Grpc.Core.Api" Version="2.83.0" />
+    <PackageVersion Include="Grpc.Core.Api" Version="2.84.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
@@ -23,12 +23,12 @@
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
 
     <!-- Demo -->
-    <PackageVersion Include="Azure.Storage.Blobs" Version="12.28.0" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.3" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
 
     <!-- Tests -->
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
@@ -38,7 +38,7 @@
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
 
 </Project>
