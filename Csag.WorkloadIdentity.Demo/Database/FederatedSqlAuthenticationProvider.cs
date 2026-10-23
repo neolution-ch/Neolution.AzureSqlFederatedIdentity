@@ -1,8 +1,6 @@
 ﻿namespace Csag.WorkloadIdentity.Demo.Database
 {
     using System;
-    using System.Buffers.Text;
-    using System.Text.Json;
     using Csag.WorkloadIdentity.Abstractions;
     using Microsoft.Data.SqlClient;
 
@@ -17,23 +15,15 @@
         {
             ArgumentNullException.ThrowIfNull(parameters);
 
-            // ConnectionTimeout bounds the exchange; 0 means no limit.
+            // ConnectionTimeout bounds the token request; 0 means no limit.
             using var timeout = new CancellationTokenSource();
             if (parameters.ConnectionTimeout > 0)
             {
                 timeout.CancelAfter(TimeSpan.FromSeconds(parameters.ConnectionTimeout));
             }
 
-            var accessToken = await tokenProvider.GetAzureSqlAccessTokenAsync(timeout.Token);
-            return new SqlAuthenticationToken(accessToken, ReadExpiry(accessToken));
-        }
-
-        private static DateTimeOffset ReadExpiry(string accessToken)
-        {
-            // A JWT is header.payload.signature, each part base64url-encoded; the payload's exp claim is in Unix seconds.
-            var payload = accessToken.Split('.')[1];
-            using var claims = JsonDocument.Parse(Base64Url.DecodeFromChars(payload));
-            return DateTimeOffset.FromUnixTimeSeconds(claims.RootElement.GetProperty("exp").GetInt64());
+            var accessToken = await tokenProvider.GetAccessTokenAsync(timeout.Token);
+            return new SqlAuthenticationToken(accessToken.Token, accessToken.ExpiresOn);
         }
     }
 }

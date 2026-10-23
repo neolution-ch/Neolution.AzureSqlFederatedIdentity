@@ -1,19 +1,23 @@
 ﻿using Csag.WorkloadIdentity;
 using Csag.WorkloadIdentity.Abstractions;
 using Csag.WorkloadIdentity.Demo.Database;
+using Csag.WorkloadIdentity.Demo.Extensions;
+using Csag.WorkloadIdentity.Demo.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWorkloadIdentity(builder.Configuration);
+builder.Services.AddBlobStorageClient(builder.Configuration);
 
 builder.Services.AddPooledDbContextFactory<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped(serviceProvider => serviceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
-// The endpoint is unauthenticated, so the exception handler logs token-exchange and SQL failures and answers with a
-// generic problem response.
+// The endpoint is unauthenticated, so the exception handler logs token, SQL and Blob Storage failures and answers
+// with a generic problem response.
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
@@ -29,9 +33,11 @@ if (!SqlAuthenticationProvider.SetProvider(
 app.UseExceptionHandler();
 app.UseStaticFiles();
 
-app.MapGet("/", () => Results.Ok("Cloud Run to Azure SQL via Workload Identity Federation."));
+app.MapGet("/", () => Results.Ok("Azure SQL and Blob Storage through Csag.WorkloadIdentity, without stored credentials."));
 
-app.MapGet("/test", async (AppDbContext context, CancellationToken cancellationToken) =>
+// The Blob Storage service is registered only when the BlobStorage resource and a test file are configured. Minimal
+// APIs infer only registered services, so the optional one is marked [FromServices] and arrives as null otherwise.
+app.MapGet("/test", async (AppDbContext context, [FromServices] IBlobStorageService? blobService, CancellationToken cancellationToken) =>
 {
     var count = await context.TestTable.CountAsync(cancellationToken);
     if (count == 0)
@@ -40,7 +46,9 @@ app.MapGet("/test", async (AppDbContext context, CancellationToken cancellationT
     }
 
     var rows = await context.TestTable.OrderBy(e => e.Id).ToListAsync(cancellationToken);
-    return Results.Ok(new { count, rows, });
+    var blobContent = blobService is null ? null : await blobService.DownloadTestFileAsync(cancellationToken);
+
+    return Results.Ok(new { count, rows, blobContent, blobSkipped = blobService is null, });
 });
 
 app.Run();
