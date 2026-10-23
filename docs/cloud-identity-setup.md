@@ -201,7 +201,7 @@ In the target database (not in `master`), create a contained user for the identi
 CREATE USER [<identity-name>] FROM EXTERNAL PROVIDER;
 ```
 
-When a person runs this statement, as the Microsoft Entra admin from C.1.1 does here, Azure SQL looks the identity up in Microsoft Graph with that person's delegated permissions, and nothing more is needed. Only when a service principal runs it, for example a deployment pipeline that signs in as an app registration or a managed identity, does Azure SQL query Microsoft Graph with its *server identity*, the managed identity assigned to the logical server, because an application cannot act on behalf of another. In that case assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement fails with "Principal '…' could not be found or this principal type is not supported". See [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal).
+When a person runs this statement, as the Microsoft Entra admin from C.1.1 does here, Azure SQL looks the identity up in Microsoft Graph with that person's delegated permissions, and nothing more is needed. Only when a service principal runs it, for example a deployment pipeline that signs in as an app registration or a managed identity, does Azure SQL query Microsoft Graph with its *server identity*, the managed identity assigned to the logical server, because an application cannot act on behalf of another. In that case assign the server an identity (in the portal under the server's **Identity** page, or `az sql server update --resource-group <resource-group> --name <server> --assign-identity`) and grant that identity permission to read the directory: add it to the Microsoft Entra **Directory Readers** role, or grant it the Microsoft Graph application permissions `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`. Without this, the statement fails with error 33134, "Principal '<identity-name>' could not be resolved", and the message says that the server identity is not configured. See the troubleshooting section of [Microsoft Entra service principals with Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-service-principal#troubleshoot).
 
 Then grant permissions. The built-in roles are a convenient starting point:
 
@@ -214,7 +214,6 @@ ALTER ROLE db_datawriter ADD MEMBER [<identity-name>];
 
 ```sql
 GRANT SELECT, INSERT ON dbo.Orders TO [<identity-name>];
-GRANT EXECUTE ON SCHEMA::dbo TO [<identity-name>];
 ```
 
 Neither built-in role allows schema changes; run migrations with a separate, more privileged identity rather than widening this one.
