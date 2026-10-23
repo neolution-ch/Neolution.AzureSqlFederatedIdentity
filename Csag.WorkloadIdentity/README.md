@@ -1,7 +1,7 @@
 # Csag.WorkloadIdentity
 
 [![NuGet](https://img.shields.io/nuget/v/Csag.WorkloadIdentity.svg)](https://www.nuget.org/packages/Csag.WorkloadIdentity)
-[![License: MIT](https://img.shields.io/badge/License-MIT-lightgray.svg)](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgray.svg)](https://github.com/neolution-ch/Csag.WorkloadIdentity/blob/main/LICENSE)
 
 Passwordless access tokens for Azure SQL and Azure Blob Storage, obtained from the identity a .NET application already runs as. The model is resource-first: each Azure resource the application uses has its own configuration section that selects the identity provider the token comes from, either the **managed identity** of the Azure resource the application runs on (`ManagedIdentity`) or the application's **Google identity**, exchanged for a Microsoft Entra ID access token through workload identity federation (`Google`). The library holds one access token per resource, refreshes it ahead of expiry, and hands it to your code as a string for `SqlConnection.AccessToken` or as a `TokenCredential` for Azure SDK clients such as `BlobServiceClient`. No database password, storage key, client secret or service account key is stored anywhere.
 
@@ -12,8 +12,8 @@ How a token is obtained, per provider:
 
 Either way the result is a Microsoft Entra ID access token for the resource's scope, `https://database.windows.net/.default` for Azure SQL and `https://storage.azure.com/.default` for Blob Storage.
 
-- Repository: <https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity>
-- Cloud and identity setup guide (managed identities, Google Cloud to Microsoft Entra ID federation, Azure SQL users, Blob Storage roles, deployment): <https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/blob/main/docs/cloud-identity-setup.md>
+- Repository: <https://github.com/neolution-ch/Csag.WorkloadIdentity>
+- Cloud and identity setup guide (managed identities, Google Cloud to Microsoft Entra ID federation, Azure SQL users, Blob Storage roles, deployment): <https://github.com/neolution-ch/Csag.WorkloadIdentity/blob/main/docs/cloud-identity-setup.md>
 
 ## Features
 
@@ -389,8 +389,8 @@ The options are validated when the host starts: no resource section at all, a mi
 
 ## License
 
-MIT. See <https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/blob/main/LICENSE>.
+MIT. See <https://github.com/neolution-ch/Csag.WorkloadIdentity/blob/main/LICENSE>.
 
 ## Contributing and security
 
-Issues and pull requests are welcome at <https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity>; the repository's `CONTRIBUTING.md` explains the build, the tests and the release process. Please report vulnerabilities privately through GitHub's private vulnerability reporting: <https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/security/advisories/new>.
+Issues and pull requests are welcome at <https://github.com/neolution-ch/Csag.WorkloadIdentity>; the repository's `CONTRIBUTING.md` explains the build, the tests and the release process. Please report vulnerabilities privately through GitHub's private vulnerability reporting: <https://github.com/neolution-ch/Csag.WorkloadIdentity/security/advisories/new>.

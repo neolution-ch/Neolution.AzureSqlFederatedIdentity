@@ -15,7 +15,7 @@ While the package is on a `0.x` version, security fixes are released as a new ve
 
 Please **do not** open a public issue or pull request for a vulnerability. Report it privately through GitHub's private vulnerability reporting for this repository:
 
-<https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/security/advisories/new>
+<https://github.com/neolution-ch/Csag.WorkloadIdentity/security/advisories/new>
 
 GitHub's [documentation](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) explains how the form works. Please include:
 
