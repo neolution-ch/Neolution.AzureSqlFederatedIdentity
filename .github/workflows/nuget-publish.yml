@@ -1,0 +1,62 @@
+name: NuGet Publish
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: nuget-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to nuget.org
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 8.x
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Tag format: @neolution-ch/csag-azure-sql-federated-identity@0.1.0
+          TAG="${{ github.event.release.tag_name }}"
+          echo "version=${TAG##*@}" >> "$GITHUB_OUTPUT"
+
+      - name: Remove changesets version-tracking stubs
+        run: |
+          # Remove package.json files so they don't leak into the NuGet package
+          find . -name package.json -not -path "./node_modules/*" -delete
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack Csag.AzureSqlFederatedIdentity --configuration Release --no-build -p:Version=${{ steps.version.outputs.version }} -o ./nupkgs
+
+      - name: Verify packed version matches the release tag
+        run: |
+          ls ./nupkgs
+          test -f "./nupkgs/Csag.AzureSqlFederatedIdentity.${{ steps.version.outputs.version }}.nupkg"
+
+      - name: Push to nuget.org
+        run: |
+          dotnet nuget push "./nupkgs/*.nupkg" \
+            --api-key "${{ secrets.NUGET_API_KEY_NEOLUTION }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

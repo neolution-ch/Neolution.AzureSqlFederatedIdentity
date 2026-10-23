@@ -2,31 +2,78 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+  # Runs on pull requests to any base, so stacked PRs are checked before they retarget main.
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
 
-env:
-  BUILD_CONFIGURATION: "Release"
-  DOTNET_VERSION: "8.x"
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  changeset-check:
+    name: Changeset Check
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: Install Dependencies
+        run: npm ci
 
-    - name: Build
-      run: dotnet build --no-restore --configuration '${{ env.BUILD_CONFIGURATION }}'
+      # The Version Packages PR consumes the changesets it releases, so the check cannot pass on it. A branch name
+      # alone is no proof (anyone can push a changeset-release/* branch), so the PR must also come from the bot.
+      - name: Check for changesets
+        if: ${{ !(startsWith(github.head_ref, 'changeset-release/') && github.event.pull_request.user.login == 'csag-changesets-bot[bot]') }}
+        run: npx changeset status --since=origin/${{ github.base_ref }}
 
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration '${{ env.BUILD_CONFIGURATION }}'
+  build:
+    name: Build, Test & Pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 8.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --logger trx --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: ./test-results
+          retention-days: 7
+
+      - name: Pack (smoke test)
+        run: dotnet pack Csag.AzureSqlFederatedIdentity --configuration Release --no-build -o ./nupkgs
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkgs
+          path: ./nupkgs
+          retention-days: 7
