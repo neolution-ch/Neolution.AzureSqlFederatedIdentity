@@ -1,8 +1,8 @@
 {
-  "name": "csag-azure-sql-federated-identity",
+  "name": "csag-workload-identity",
   "private": true,
   "workspaces": [
-    "Csag.AzureSqlFederatedIdentity"
+    "Csag.WorkloadIdentity"
   ],
   "scripts": {
     "changeset": "changeset",

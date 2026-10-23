@@ -1,5 +1,5 @@
 ---
-"@neolution-ch/csag-azure-sql-federated-identity": minor
+"@neolution-ch/csag-workload-identity": minor
 ---
 
 Target `net8.0` and `net10.0`, and tidy the dependency surface.
