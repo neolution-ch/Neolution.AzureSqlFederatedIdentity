@@ -1,6 +1,6 @@
 # Csag.WorkloadIdentity
 
-[![Build Status](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/actions/workflows/ci.yml/badge.svg)](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity/actions)
+[![Build Status](https://github.com/neolution-ch/Csag.WorkloadIdentity/actions/workflows/ci.yml/badge.svg)](https://github.com/neolution-ch/Csag.WorkloadIdentity/actions)
 [![NuGet](https://img.shields.io/nuget/v/Csag.WorkloadIdentity.svg)](https://www.nuget.org/packages/Csag.WorkloadIdentity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-lightgray.svg)](./LICENSE)
 

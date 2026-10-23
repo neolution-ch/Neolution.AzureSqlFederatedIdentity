@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve Csag.WorkloadIdentity. Bug reports, questions and pull requests are welcome on [GitHub](https://github.com/neolution-ch/Neolution.AzureSqlFederatedIdentity). For vulnerabilities, please follow [SECURITY.md](./SECURITY.md) instead of opening an issue.
+Thank you for helping improve Csag.WorkloadIdentity. Bug reports, questions and pull requests are welcome on [GitHub](https://github.com/neolution-ch/Csag.WorkloadIdentity). For vulnerabilities, please follow [SECURITY.md](./SECURITY.md) instead of opening an issue.
 
 ## Prerequisites
 

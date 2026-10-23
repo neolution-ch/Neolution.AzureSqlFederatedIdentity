@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
   "changelog": [
     "@changesets/changelog-github",
-    { "repo": "neolution-ch/Neolution.AzureSqlFederatedIdentity" }
+    { "repo": "neolution-ch/Csag.WorkloadIdentity" }
   ],
   "commit": false,
   "fixed": [["@neolution-ch/csag-workload-identity"]],
