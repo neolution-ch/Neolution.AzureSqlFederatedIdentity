@@ -6,8 +6,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageTags>azure sql federated identity google cloud iam credentials entra authentication</PackageTags>
-    <Description>Federated identity integration for Azure SQL using Google Cloud IAM Credentials and Microsoft Entra ID.</Description>
+    <PackageTags>azure sql blob storage workload identity federated identity managed identity google cloud entra authentication</PackageTags>
+    <Description>Passwordless access tokens for Azure SQL and Azure Blob Storage from the application's workload identity: an Azure managed identity, or a Google identity through workload identity federation with Microsoft Entra ID.</Description>
   </PropertyGroup>
 
   <ItemGroup>
