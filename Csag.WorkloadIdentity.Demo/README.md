@@ -64,7 +64,7 @@ dotnet user-secrets set "BlobStorageTestFile:Endpoint" "https://<account>.blob.c
 dotnet user-secrets set "BlobStorageTestFile:FilePath" "<container>/<blob>" --project Csag.WorkloadIdentity.Demo
 ```
 
-Blob Storage is optional: when the `BlobStorage` section or either `BlobStorageTestFile` value is missing, the app does not register the Blob Storage client and `/test` returns the SQL rows with `"blobSkipped": true`. A configured `BlobStorage` section is validated at startup like `AzureSql`, and so is the form of `BlobStorageTestFile:FilePath` once both test-file values are set.
+Blob Storage is optional: when the `BlobStorage` section, `BlobStorageTestFile:Endpoint` or `BlobStorageTestFile:FilePath` is missing, the app does not register the Blob Storage client and `/test` returns the SQL rows with `"blobSkipped": true`. The app validates a configured `BlobStorage` section at startup, like `AzureSql`. When the app registers the client, it also checks at startup that `Endpoint` is an absolute `https` URI and that `FilePath` has the form `<container>/<blob>`.
 
 ### Managed identity on an Azure host
 

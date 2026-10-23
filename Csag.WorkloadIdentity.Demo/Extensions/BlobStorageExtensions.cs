@@ -21,8 +21,13 @@
                 return services;
             }
 
-            // The test file is addressed as "<container>/<blob>"; the blob name may itself contain slashes. Checked
-            // here so that a malformed value stops the app at startup instead of failing every /test.
+            // A malformed value stops the app at startup, not each /test. On Linux, Uri.TryCreate accepts a bare path
+            // as a file URI; the scheme check rejects it. The blob name in "<container>/<blob>" can contain slashes.
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri) || endpointUri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidOperationException($"BlobStorageTestFile:Endpoint must be an absolute https URI such as 'https://<account>.blob.core.windows.net', but is '{endpoint}'.");
+            }
+
             var separator = filePath.IndexOf('/', StringComparison.Ordinal);
             if (separator <= 0 || separator == filePath.Length - 1)
             {
@@ -35,7 +40,7 @@
             // The library's TokenCredential adapter serves the client from the held Blob Storage token and reports
             // that token's real expiry, so the Azure SDK asks for a new one only when the provider refreshes it.
             services.AddSingleton(serviceProvider => new BlobServiceClient(
-                new Uri(endpoint),
+                endpointUri,
                 new WorkloadIdentityTokenCredential(serviceProvider.GetRequiredService<IBlobStorageTokenProvider>())));
             services.AddSingleton<IBlobStorageService>(serviceProvider => new BlobStorageService(
                 serviceProvider.GetRequiredService<BlobServiceClient>().GetBlobContainerClient(containerName).GetBlobClient(blobName)));
